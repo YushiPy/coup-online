@@ -94,13 +94,13 @@ export const PLAYERS = {
     user: {
         pos: {
             coinStack: new Vector3( 0.55, -2.4, -1.6),
-            frontCard: new Vector3(-0.15, -2.18, -1.45),
-            backCard:  new Vector3( 0.15, -2.1, -1.39),
+            frontCard:  new Vector3( 0.15, -2.1, -1.39),
+            backCard: new Vector3(-0.15, -2.18, -1.45),
             loneCard:  new Vector3( 0.00, -2.1, -1.39)
         },
         rot: {
-            frontCard: new Vector3(-30.0, 0.0,  5.0),
-            backCard:  new Vector3(-30.0, 0.0, -5.0),
+            frontCard:  new Vector3(-30.0, 0.0, -5.0),
+            backCard: new Vector3(-30.0, 0.0,  5.0),
             loneCard:  new Vector3(-30.0, 0.0,  0.0)
         }
     },

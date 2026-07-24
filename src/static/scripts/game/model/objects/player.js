@@ -1,5 +1,6 @@
-import { ANIM, PLAYERS } from "../../settings.js";
+import { ANIM, OBJ, PLAYERS } from "../../settings.js";
 import { Vector3 } from "../../utils/wglm-classes.js";
+import Card from "./card.js";
 
 export default class Player {
     id; cards; coinStack;
@@ -23,22 +24,30 @@ export default class Player {
         this.coinStack.spend(numOfCoins);
     }
 
-    async returnCard(cardID){
-        let otherCard, multPosRot;
-        if(cardID) {
-            otherCard = 0;
-            multPosRot = 1;
-        } else {
-            otherCard = 1;
-            multPosRot = -1;
-        }
+    async drawCard(cardID, cardType) {
+        const { pos, rot } = PLAYERS.user;
 
+        const [main, other] = cardID ? ["backCard", "frontCard"] : ["frontCard", "backCard"];
+
+        const newCard = new Card(cardType, pos[main], rot[main], OBJ.card.scale);        
+        this.cards[cardID] = newCard;
+
+        const otherCard = 1 - cardID;
+        await Promise.all([
+            newCard.drawToHandAnim(),
+            this.cards[otherCard].moveTo(pos[other]),
+            this.cards[otherCard].rotateTo(rot[other])
+        ]);
+    }
+
+    async returnCard(cardID){
+        const otherCard = 1 - cardID;
         await Promise.all([
             this.cards[cardID].handToDrawPileAnim(),
             this.cards[otherCard].moveTo(PLAYERS.user.pos.loneCard),
             this.cards[otherCard].rotateTo(PLAYERS.user.rot.loneCard)
         ]);
-
+        console.log("A");
         this.cards[cardID] = null;
     }
 
@@ -74,6 +83,4 @@ export default class Player {
         newCard.exchangeAnim(cardExchanged);
         cardExchanged.exchangeAnim(newCard);
     }
-
-
 }

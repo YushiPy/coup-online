@@ -22,9 +22,9 @@ export default class RenderableObject {
     #isDirty = true; #cachedModelMatrix = null;
 
     constructor(name, initPos, initRotation, initScale) {
-        this.#position = this.#bindVector(initPos);
-        this.#scale    = this.#bindVector(initScale);
-        this.#rotation = this.#bindVector(initRotation);
+        this.#position = this.#bindVector(initPos.clone());
+        this.#scale    = this.#bindVector(initScale.clone());
+        this.#rotation = this.#bindVector(initRotation.clone());
         
         const [ mesh, material ] = AssetManager.getAssets(name);
         this.#mesh = mesh;

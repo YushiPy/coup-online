@@ -13,7 +13,7 @@ export default class Card extends RenderableObject {
     #onAnimation = false;
 
     constructor(typeIdx, initPos, initRotation, initScale = OBJ.card.scale) {
-        super("card", initPos.clone(), initRotation.clone(), initScale.clone());
+        super("card", initPos, initRotation, initScale);
         this.typeIdx = typeIdx;
         this.ogPos = initPos.clone();
         this.ogRot = initRotation.clone();
@@ -44,18 +44,18 @@ export default class Card extends RenderableObject {
 
     // Animations
     async moveTo(newPos) {
-        this.#ogPos = newPos;
+        this.#ogPos = newPos.clone();
         await this.animator.positionAnimation({
-            to: newPos,
+            to: this.#ogPos,
             animTime: 1.0,
             animCurve: easeOutBackCurve
         });
     }
 
     async rotateTo(newRot) {
-        this.ogRot = newRot;
+        this.ogRot = newRot.clone();
         await this.animator.rotationAnimation({
-            to: newRot,
+            to: this.ogRot,
             animTime: 1.0,
             animCurve: easeOutBackCurve
         });
@@ -67,7 +67,28 @@ export default class Card extends RenderableObject {
         await this.returnCardAnim();
     }
 
-    async revealCardAnim(playerID, ) {
+    async drawToHandAnim() {
+        const { drawPile } = OBJ;
+        const { levitateOffset } = ANIM.card.levitateAboveHand;
+        await this.#drawCardAnim();
+
+        await Promise.all([
+            this.animator.positionAnimation({
+                to: Vector3.add(this.ogPos, levitateOffset),
+                ...ANIM.card.returnDrawPile.translation
+            }),
+            this.animator.rotationAnimation({
+                to: new Vector3(90.0, this.ogRot.y, 0.0),
+                ...ANIM.card.returnDrawPile.rotation
+            })
+        ]);
+
+        this.#levitateAnim({ reverse: true, handPos: this.ogPos, handRot: this.ogRot });
+
+        this.#onAnimation = false;
+    }
+
+    async revealCardAnim(playerID) {
         const { reveal } = ANIM.card;
         this.#onAnimation = true;
 
@@ -165,6 +186,25 @@ export default class Card extends RenderableObject {
         this.ogPos = newPos;
         this.ogRot = newRot;
         this.#onAnimation = false;
+    }
+
+    #drawCardAnim() {
+        const { drawPile } = OBJ;
+        const { returnDrawPile } = ANIM.card;
+
+        this.rotation = drawPile.rotation.clone();
+        return Promise.all([
+            this.animator.positionAnimation({
+                from: drawPile.middlePos,
+                to: Vector3.add(drawPile.middlePos, returnDrawPile.drawPileOffset), 
+                ...returnDrawPile.translation,
+            }),
+            this.animator.scaleAnimation({
+                from: Vector3.subtract(this.ogScale, new Vector3(0.02, 0.02, 0.0)),
+                to: this.ogScale,
+                ...returnDrawPile.scale
+            })
+        ]);
     }
 
     #levitateAnim(config = {}) {
