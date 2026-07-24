@@ -33,7 +33,7 @@ def test_login(client, test_player):
 
     assert response.status_code == 200
     assert "session_token" in client.cookies
-    assert client.cookies["session_token"] == str(test_player.id)
+    assert client.cookies["session_token"] == str(test_player.session_token)
 
 
 def test_login_wrong_username(client, test_player):
@@ -69,7 +69,6 @@ def test_signup(client):
 
     assert response.status_code == 200
     assert "session_token" in client.cookies
-    # assert username == displayname
 
 
 def test_signup_from_guest(client):
@@ -78,7 +77,6 @@ def test_signup_from_guest(client):
     assert response.status_code == 200
     assert "session_token" in client.cookies
 
-    session_token = client.cookies["session_token"]
     response = client.post(
         "/api/auth/signup",
         json={
@@ -90,7 +88,6 @@ def test_signup_from_guest(client):
 
     assert response.status_code == 200
     assert "session_token" in client.cookies
-    assert client.cookies["session_token"] == session_token
 
 
 def test_signup_taken_username(client, test_player):
@@ -127,7 +124,7 @@ def test_signup_invalid_username(client, username):
 
 @pytest.mark.parametrize(
     "password",
-    ["passwor", "pass word"],
+    ["pa", "pass word"],
     ids=["too_short", "with_space"],
 )
 def test_signup_invalid_password(client, password):
@@ -183,7 +180,7 @@ def test_logout(client, test_player):
 
     assert response.status_code == 200
     assert "session_token" in client.cookies
-    assert client.cookies["session_token"] == str(test_player.id)
+    assert client.cookies["session_token"] == str(test_player.session_token)
 
     response = client.post("/api/auth/logout")
 

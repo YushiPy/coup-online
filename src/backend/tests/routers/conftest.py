@@ -26,7 +26,7 @@ def test_player(session: Session):
         username="some_name",
         password="some_password",
         password_confirmation="some_password",
-        display_name="Super Cool Player",
+        displayname="Super Cool Player",
         status="online",
     )
     session.add(player)
@@ -43,6 +43,7 @@ def test_public_match(session: Session, test_player):
         gamemode="classic",
         visibility="public",
         bot_fill="none",
+        join_code="public_match_code"
     )
     match.players.append(test_player)
     session.add(match)
@@ -60,6 +61,7 @@ def test_private_match(session: Session, test_player):
         visibility="private",
         password="some_password",
         bot_fill="none",
+        join_code="private_match_code"
     )
     match.players.append(test_player)
     session.add(match)

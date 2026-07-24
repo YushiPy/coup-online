@@ -41,14 +41,14 @@ async def set_avatar(
 	session: SessionDep,
 	player: RequiredRegisteredOrGuestDep,
 ) -> dict[str, str]:
-	filename = f"{player.id.hex}.png"
-	filepath = settings.avatar_upload_dir / filename
+    filename = f"{player.id.hex}.png"
+    filepath = settings.avatar_upload_dir / filename
 
-	with open(filepath, "wb+") as file:
-		shutil.copyfileobj(avatar.file, file)
+    with open(filepath, "wb+") as file:
+        shutil.copyfileobj(avatar.file, file)
 
-	player.avatar_url = f"/static/assets/img/avatars/uploads/{filename}"
-	add_to_db(player, session)
-	await broadcast_player_profile_updated(session, player.id)
+    player.avatar_url = f"/static/assets/img/avatars/uploads/{filename}"
+    add_to_db(player, session)
+    await broadcast_player_profile_updated(session, player.id)
 
-	return {"avatar_url": player.avatar_url}
+    return {"avatar_url": player.avatar_url}
