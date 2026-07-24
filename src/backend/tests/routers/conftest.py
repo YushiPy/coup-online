@@ -6,7 +6,8 @@ from sqlmodel.pool import StaticPool
 from backend.database import get_session
 from backend.main import app
 from backend.models.player import Player
-from backend.models.match import Match
+from backend.models.match import Match, MatchSettings
+import backend.routers.websockets as ws
 
 
 @pytest.fixture(name="session")
@@ -14,6 +15,11 @@ def session_fixture():
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
+
+    # Manually overriding websockets engine because it is not
+    # using SessionDep(), and instead creating its own session
+    ws.engine = engine
+
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
@@ -44,11 +50,17 @@ def public_match_fixture(session: Session, test_player):
         visibility="public",
         bot_fill="none",
         join_code="public_match_code",
+        host_id=test_player.id,
     )
     match.players.append(test_player)
+
+    settings = MatchSettings(match_id=match.id, bot_fill="none")
+
     session.add(match)
+    session.add(settings)
     session.commit()
     session.refresh(match)
+    session.refresh(settings)
     return match
 
 
@@ -62,6 +74,7 @@ def private_match_fixture(session: Session, test_player):
         password="some_password",
         bot_fill="none",
         join_code="private_match_code",
+        host_id=test_player.id,
     )
     match.players.append(test_player)
     session.add(match)
