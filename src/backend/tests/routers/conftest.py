@@ -20,8 +20,8 @@ def session_fixture():
     SQLModel.metadata.drop_all(engine)
 
 
-@pytest.fixture
-def test_player(session: Session):
+@pytest.fixture(name="test_player")
+def player_fixture(session: Session):
     player = Player(
         username="some_name",
         password="some_password",
@@ -35,15 +35,15 @@ def test_player(session: Session):
     return player
 
 
-@pytest.fixture
-def test_public_match(session: Session, test_player):
+@pytest.fixture(name="test_public_match")
+def public_match_fixture(session: Session, test_player):
     match = Match(
         lobby_name="some_name",
         max_players=4,
         gamemode="classic",
         visibility="public",
         bot_fill="none",
-        join_code="public_match_code"
+        join_code="public_match_code",
     )
     match.players.append(test_player)
     session.add(match)
@@ -52,8 +52,8 @@ def test_public_match(session: Session, test_player):
     return match
 
 
-@pytest.fixture
-def test_private_match(session: Session, test_player):
+@pytest.fixture(name="test_private_match")
+def private_match_fixture(session: Session, test_player):
     match = Match(
         lobby_name="some_name",
         max_players=4,
@@ -61,7 +61,7 @@ def test_private_match(session: Session, test_player):
         visibility="private",
         password="some_password",
         bot_fill="none",
-        join_code="private_match_code"
+        join_code="private_match_code",
     )
     match.players.append(test_player)
     session.add(match)
