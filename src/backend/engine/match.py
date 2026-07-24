@@ -4,7 +4,7 @@ from backend.engine.deck import Deck
 
 
 DEFAULT_BASE_CARDS = ["Ambassador", "Assassin", "Captain", "Contessa", "Duke"]
-ALL_ACTIONS = ["income", "foreing_aid", "coup", "tax", "assassinate", "steal", "exchange"]
+ALL_ACTIONS = ["income", "foreign_aid", "coup", "tax", "assassinate", "steal", "exchange"]
 
 # Now a lobby-configurable setting (constants.MATCH_SETTINGS_SCHEMA
 # "assassinate_cost"); kept as a named default here too so this constructor
@@ -62,7 +62,8 @@ class Match:
                                            "players_passed_action": [], # number of players who accepted the last action (did not block or challenge)
                                            "players_passed_block": [],
                                            "pending_action": False,
-                                           "card_loser_id": None}
+                                           "card_loser_id": None,
+                                           "declared_card": None}
         
         # Influences that can make the action
         self.action_cards = {
@@ -131,7 +132,7 @@ class Match:
             raise ValueError("At least 1 player is required to start.")
         # If copies_by_card=None, choose default values
         if copies_by_card is not None:
-            if copies_by_card > 0 and num_players > (2 * copies_by_card) + 2:
+            if copies_by_card > 0 and num_players > (2 * copies_by_card) + self.exchange_draw_cards:
                 raise ValueError("The size of the deck is insufficient for the number of players.")
             else:
                 self.copies_by_card = copies_by_card
@@ -197,7 +198,7 @@ class Match:
         if len(players_alive) == 0:
             raise ValueError("There are no living players in the game.")
         if len(players_alive) == 1:
-            return players_alive[0]
+            return players_alive[0].id
         else:
             return None
     
@@ -264,6 +265,7 @@ class Match:
         event = data.get("event")
         action = data.get("action")
         target_id = data.get("target_id")
+        declared_card = data.get("declared_card")
 
         # Catch errors
         if event != "chosen_action":
@@ -281,6 +283,8 @@ class Match:
                 raise ValueError("You can not do it with this player.")
             if action == "steal" and self.players[target_id].coins == 0:
                 raise ValueError("You can not steal from a player with no coins.")
+        if declared_card not in self.base_cards and ((self.declared_coup and action == "coup") or (self.declared_assassinate and action == "assassinate")):
+            raise ValueError("You must declare a valid influence.")
         
         # Gets action description
         self.turn_description = {"source_id": player_id,
@@ -291,7 +295,8 @@ class Match:
                                    "players_passed_action": [],
                                    "players_passed_block": [],
                                    "pending_action": False,
-                                   "card_loser_id": None}
+                                   "card_loser_id": None,
+                                   "declared_card": declared_card}
         
         # If the action can not be blocked or challenged
         if action in ["income", "coup"]:
@@ -463,20 +468,29 @@ class Match:
     # Processes the action while the state is "waiting_exchange"
     def process_event_while_waiting_exchange(self, player_id: str, data: dict):
         event = data.get("event")
-        source_id = self.turn_description["source_id"]
+        action = self.turn_description.get("action")
+        if action == "exchange":
+            exchange_id = self.turn_description["source_id"]
+        elif action in ["assassinate", "coup"]:
+            exchange_id = self.turn_description["target_id"]
         selected_cards = data.get("selected_cards")
 
         # Catch errors
-        if player_id != source_id:
+        if player_id != exchange_id:
             raise ValueError("It is not your turn.")
         if event != "selected_cards" or len(selected_cards) != self.exchange_draw_cards:
             raise ValueError(f"You must choose {self.exchange_draw_cards} cards to return to the deck.")
-        
+
+        cards = self.players[player_id].cards.copy()
         for card in selected_cards:
-            if card not in self.players[player_id].cards:
+            if card not in cards:
                 raise ValueError("You need to select cards that you own.")
+            cards.remove(card)
+
+        for card in selected_cards:
             self.players[player_id].cards.remove(card)
             self.deck.push_card(card)
+
         self.deck.shuffle()
         self.status["current_match_state"] = "turn_resolved"
         return {"event": "turn_resolved", 
@@ -494,7 +508,8 @@ class Match:
                                     "players_passed_action": [],
                                     "players_passed_block": [],
                                     "pending_action": False,
-                                    "card_loser_id": None}
+                                    "card_loser_id": None,
+                                    "declared_card": None}
     
     # Makes the action described in description_action, given that the action has been confirmed
     def make_action(self):
@@ -521,21 +536,44 @@ class Match:
                     "lost_card": None}
     
         elif action == "coup":
-            cards = self.players[target_id].cards
-            if len(cards) == 1:
-                lost_card = cards.pop()
-                self.status["current_match_state"] = "turn_resolved"
-                return {"event": "turn_resolved",
-                        "action": action,
-                        "source_id": source_id,
-                        "target_id": target_id,
-                        "lost_card": lost_card}
+            if self.declared_coup:
+                cards = self.players[target_id].cards
+                declared_card = self.turn_description.get("declared_card")
+                # Success
+                if declared_card in cards:
+                    cards.remove(declared_card)
+                    return {"event": "turn_resolved",
+                            "action": action,
+                            "source_id": source_id,
+                            "target_id": target_id,
+                            "lost_card": declared_card}
+                # Fail
+                else:
+                    new_cards = []
+                    for _ in range(self.exchange_draw_cards):
+                        new_cards.append(self.deck.pop_card())
+                    self.players[target_id].cards += new_cards
+                    self.status["current_match_state"] = "waiting_exchange"
+                    return {"event": "waiting_exchange",
+                            "player_id": target_id,
+                            "new_cards": new_cards,
+                            "cards": self.players[target_id].cards}
             else:
-                self.status["current_match_state"] = "waiting_card_loss"
-                self.turn_description["card_loser_id"] = target_id
-                return {"event": "waiting_card_loss",
-                        "player_id": target_id,
-                        "cards": cards}
+                cards = self.players[target_id].cards
+                if len(cards) == 1:
+                    lost_card = cards.pop()
+                    self.status["current_match_state"] = "turn_resolved"
+                    return {"event": "turn_resolved",
+                            "action": action,
+                            "source_id": source_id,
+                            "target_id": target_id,
+                            "lost_card": lost_card}
+                else:
+                    self.status["current_match_state"] = "waiting_card_loss"
+                    self.turn_description["card_loser_id"] = target_id
+                    return {"event": "waiting_card_loss",
+                            "player_id": target_id,
+                            "cards": cards}
             
         elif action == "tax":
             self.add_coins_to_player(source_id, self.tax_coins)
@@ -547,28 +585,51 @@ class Match:
                     "lost_card": None}
 
         elif action == "assassinate":
-            cards = self.players[target_id].cards
-            if len(cards) == 0:
-                self.status["current_match_state"] = "turn_resolved"
-                return {"event": "turn_resolved", 
-                        "action": action, 
-                        "source_id": source_id, 
-                        "target_id": target_id, 
-                        "lost_card": None}
-            elif len(cards) == 1:
-                lost_card = cards.pop()
-                self.status["current_match_state"] = "turn_resolved"
-                return {"event": "turn_resolved",
-                        "action": action,
-                        "source_id": source_id,
-                        "target_id": target_id,
-                        "lost_card": lost_card}
-            else:
-                self.turn_description["card_loser_id"] = target_id
-                self.status["current_match_state"] = "waiting_card_loss"
-                return {"event": "waiting_card_loss",
-                        "player_id": target_id,
-                        "cards": cards}
+            if self.declared_assassinate:
+                cards = self.players[target_id].cards
+                declared_card = self.turn_description.get("declared_card")
+                # Success
+                if declared_card in cards:
+                    cards.remove(declared_card)
+                    return {"event": "turn_resolved",
+                            "action": action,
+                            "source_id": source_id,
+                            "target_id": target_id,
+                            "lost_card": declared_card}
+                # Fail
+                else:
+                    new_cards = []
+                    for _ in range(self.exchange_draw_cards):
+                        new_cards.append(self.deck.pop_card())
+                    self.players[target_id].cards += new_cards
+                    self.status["current_match_state"] = "waiting_exchange"
+                    return {"event": "waiting_exchange",
+                            "player_id": target_id,
+                            "new_cards": new_cards,
+                            "cards": self.players[target_id].cards}
+            else:                
+                cards = self.players[target_id].cards
+                if len(cards) == 0:
+                    self.status["current_match_state"] = "turn_resolved"
+                    return {"event": "turn_resolved", 
+                            "action": action, 
+                            "source_id": source_id, 
+                            "target_id": target_id, 
+                            "lost_card": None}
+                elif len(cards) == 1:
+                    lost_card = cards.pop()
+                    self.status["current_match_state"] = "turn_resolved"
+                    return {"event": "turn_resolved",
+                            "action": action,
+                            "source_id": source_id,
+                            "target_id": target_id,
+                            "lost_card": lost_card}
+                else:
+                    self.turn_description["card_loser_id"] = target_id
+                    self.status["current_match_state"] = "waiting_card_loss"
+                    return {"event": "waiting_card_loss",
+                            "player_id": target_id,
+                            "cards": cards}
             
         elif action == "steal":
             stolen_coins = min(self.extort_coins, self.players[target_id].coins)
@@ -714,12 +775,12 @@ class Match:
         self.players[player_id].alive = False
         self.players[player_id].cards = []
 
-        winner = self.check_winner()
-        if winner is not None:
+        winner_id = self.check_winner()
+        if winner_id is not None:
             self.status["finished"] = True
             self.status["current_match_state"] = "end_of_match"
             return {"event": "end_of_match",
-                    "winner": winner.id, 
+                    "winner": winner_id, 
                     "last_eliminated": [player_id]}
         
         if current_match_state == "waiting_action" and self.order[self.turn_id] == player_id:
@@ -733,13 +794,14 @@ class Match:
                     "target_id": self.turn_description.get("target_id"),
                     "lost_card": None}
             
-        if current_match_state == "waiting_exchange" and self.turn_description.get("source_id") == player_id:
-            self.status["current_match_state"] = "turn_resolved"
-            return {"event": "turn_resolved", 
-                    "action": "exchange", 
-                    "player_id": player_id}
-
-        self.remove_player(player_id)
+        if current_match_state == "waiting_exchange":
+            action = self.turn_description.get("action")
+            exchange_id = self.turn_description.get("source_id") if action == "exchange" else self.turn_description.get("target_id")
+            if exchange_id == player_id:
+                self.status["current_match_state"] = "turn_resolved"
+                return {"event": "turn_resolved", 
+                        "action": "exchange", 
+                        "player_id": player_id}
         
         return result
     
