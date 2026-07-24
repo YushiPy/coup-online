@@ -37,6 +37,7 @@ export default class Renderer {
         let material = AssetManager.getMaterial("card");
         material.bind(projection, scene.camera.getView());
         for(const c of cards) {
+            if(!c) continue;
             // Sum one bcs of back card w/ idx 0
             material.shader.setInt("uCardIdx", c.typeIdx + 1);
             c.draw();

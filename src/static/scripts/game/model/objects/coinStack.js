@@ -23,7 +23,7 @@ export default class CoinStack {
         this.#spentCoins.forEach(coin => coin.update(dt));
     }
 
-    buy(numOfCoins = 1) {
+    buy(numOfCoins) {
         // Assumes caller checks length
         const delayTime = ANIM.coinStack.delayBetweenCoins * 1000;
         for(let i=0; i<numOfCoins; i++) {
@@ -33,8 +33,8 @@ export default class CoinStack {
         };
     }
 
-    spend(numOfCoins = 1) {
-        // Assumes caller checks length
+    spend(numOfCoins) {
+        if(numOfCoins > this.coins.length) numOfCoins = this.coins.length;
         const delayTime = ANIM.coinStack.delayBetweenCoins * 1000;
         for(let i=0; i<numOfCoins; i++) {
             setTimeout(() => {

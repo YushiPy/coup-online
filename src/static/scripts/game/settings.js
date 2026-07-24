@@ -95,11 +95,13 @@ export const PLAYERS = {
         pos: {
             coinStack: new Vector3( 0.55, -2.4, -1.6),
             frontCard: new Vector3(-0.15, -2.18, -1.45),
-            backCard:  new Vector3( 0.15, -2.1, -1.39)
+            backCard:  new Vector3( 0.15, -2.1, -1.39),
+            loneCard:  new Vector3( 0.00, -2.1, -1.39)
         },
         rot: {
             frontCard: new Vector3(-30.0, 0.0,  5.0),
-            backCard:  new Vector3(-30.0, 0.0, -5.0)
+            backCard:  new Vector3(-30.0, 0.0, -5.0),
+            loneCard:  new Vector3(-30.0, 0.0,  0.0)
         }
     },
     side: {
@@ -161,43 +163,67 @@ export const ANIM = {
             animCurve: wglmAnim.easeInOutCurve
         },
     },
-    exchangeCard: {
-        levitateOffset: new Vector3(0, 0.5, -0.2),
-        levitateAnim: { 
-            animTime: 1.0,
-            animCurve: wglmAnim.easeOutQuintCurve
+    card: {
+        hover: {
+            positionOffset: new Vector3(0.0, 0.1, -0.06),
+            animSettings: {
+                animTime: 0.2,
+                animCurve: wglmAnim.easeOutBackCurve
+            }
         },
-        translateAnim: {
-            animTime: 1.25,
-            animCurve: wglmAnim.easeOutQuintCurve
-        }
-    },
-    hoverCard: {
-        positionOffset: new Vector3(0.0, 0.1, -0.06),
-        animSettings: {
-            animTime: 0.2,
-            animCurve: wglmAnim.easeOutBackCurve
-        }
-    },
-    showCard: {
-        totalAnimTime: 6,
-        cameraZoom: 30,
-        cameraTime: 0.9,
-        card: {
-            posOffset: new Vector3(0.0, 0.7, -0.4),
-            rotOffset: new Vector3(0.0, 180.0, 0.0),
-            translation: {
-                animTime: 2.5,
-                animCurve: wglmAnim.easeOutCircCurve
-            },
-            rotation: {
-                animTime: 0.25,
-                animCurve: wglmAnim.easeInOutCurve
-            },
-            inverseTranslation: {
-                animTime: 0.8,
+        levitateAboveHand: {
+            levitateOffset: new Vector3(0, 0.5, -0.2),
+            levitateAnim: {
+                animTime: 1.0,
                 animCurve: wglmAnim.easeOutQuintCurve
             }
         },
-    }
+        exchange: {
+            translateAnim: {
+                animTime: 1.25,
+                animCurve: wglmAnim.easeOutQuintCurve
+            }
+        },
+        reveal: {
+            totalAnimTime: 6,
+            cameraZoom: 30,
+            cameraTime: 0.9,
+            card: {
+                posOffset: new Vector3(0.0, 0.7, -0.4),
+                rotOffset: new Vector3(0.0, 180.0, 0.0),
+                translation: {
+                    animTime: 2.5,
+                    animCurve: wglmAnim.easeOutBackCurve
+                },
+                rotation: {
+                    animTime: 0.75,
+                    animCurve: wglmAnim.easeOutBackCurve
+                },
+                inverseTranslation: {
+                    animTime: 0.8,
+                    animCurve: wglmAnim.easeOutQuintCurve
+                }
+            },
+        },
+        returnDrawPile: {
+            drawPileOffset: new Vector3(0.5, 0.0, 0.5),
+            translation: {
+                animTime: 0.8,
+                animCurve: wglmAnim.easeOutQuintCurve
+            },
+            rotation: {
+                animTime: 0.5,
+                animCurve: wglmAnim.linearCurve
+            },
+            scale: {
+                animTime: 0.5,
+                animCurve: wglmAnim.linearCurve
+            },
+            drawPileTranslation: {
+                animTime: 0.9,
+                animCurve: wglmAnim.linearCurve
+            }
+        }
+    },
+    
 }

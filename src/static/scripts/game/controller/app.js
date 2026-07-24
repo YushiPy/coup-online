@@ -70,11 +70,6 @@ export default class App {
         let mouseX = event.offsetX;
         let mouseY = event.offsetY;
 
-        let xOffset = event.movementX;
-        let yOffset = -event.movementY;
-
-        this.#scene.camera.processMouseMovement(xOffset, yOffset);
-
         const mouseX_norm = (2.0 * mouseX) / this.#canvas.width - 1.0;
         const mouseY_norm = 1.0 - (2.0 * mouseY) / this.#canvas.height; // Y Inverted
         const aspectRatio = this.#canvas.width / this.#canvas.height; 

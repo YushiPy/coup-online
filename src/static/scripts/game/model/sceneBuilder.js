@@ -73,6 +73,11 @@ export default class SceneBuilder {
         // Supplies
         drawPile.position.z += playerDistance;
         coinBank.position.z += playerDistance;
+        
+        drawPile.middlePos = Vector3.add(
+            drawPile.position,
+            new Vector3(0, (drawPile.count / 2) * drawPile.heightPadding, 0)
+        );
         coinBank.middlePos = Vector3.add(
             coinBank.position,
             new Vector3(0, (coinBank.count / 2) * coinBank.heightPadding, 0)

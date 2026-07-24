@@ -1,21 +1,27 @@
 import { ANIM, OBJ } from '../../settings.js';
 import { Vector3 } from '../../utils/wglm-classes.js';
-import { easeInOutCurve, easeOutBackCurve, easeOutCircCurve, linearCurve } from '../../utils/wlgm-animation-curves.js';
+import { easeInOutCurve, easeOutBackCurve, easeOutCircCurve, easeOutQuintCurve, linearCurve } from '../../utils/wlgm-animation-curves.js';
 
 import RenderableObject from '../../view/renderableObject.js';
 
 export default class Card extends RenderableObject {
     typeIdx = 0;
-    ogPos;
+    ogRot; ogScale
+
+    #ogPos;
 
     #onAnimation = false;
 
     constructor(typeIdx, initPos, initRotation, initScale = OBJ.card.scale) {
-        super("card", initPos, initRotation, initScale);
+        super("card", initPos.clone(), initRotation.clone(), initScale.clone());
         this.typeIdx = typeIdx;
         this.ogPos = initPos.clone();
         this.ogRot = initRotation.clone();
+        this.ogScale = initScale.clone();
     }
+
+    get ogPos() { return this.#ogPos };
+    set ogPos(val) { this.#ogPos = val };
 
     update(dt) {
         super.update(dt);
@@ -25,40 +31,121 @@ export default class Card extends RenderableObject {
         if(this.#onAnimation) return;
 
         this.animator.positionAnimation({
-            to: Vector3.add(this.position, ANIM.hoverCard.positionOffset),
-            ...ANIM.hoverCard.animSettings
+            to: Vector3.add(this.position, ANIM.card.hover.positionOffset),
+            ...ANIM.card.hover.animSettings
         })
     }
 
     onMouseExit() {
         if(this.#onAnimation) return;
 
-        this.animator.positionAnimation({to: this.ogPos, ...ANIM.hoverCard.animSettings});
+        this.animator.positionAnimation({to: this.ogPos, ...ANIM.card.hover.animSettings});
     }
 
     // Animations
-    async startExchangeAnim(otherCard) {
-        const { 
-            levitateAnim, 
-            translateAnim, 
-            levitateOffset 
-        } = ANIM.exchangeCard;
+    async moveTo(newPos) {
+        this.#ogPos = newPos;
+        await this.animator.positionAnimation({
+            to: newPos,
+            animTime: 1.0,
+            animCurve: easeOutBackCurve
+        });
+    }
+
+    async rotateTo(newRot) {
+        this.ogRot = newRot;
+        await this.animator.rotationAnimation({
+            to: newRot,
+            animTime: 1.0,
+            animCurve: easeOutBackCurve
+        });
+    }
+
+    async handToDrawPileAnim() {
+        await this.#levitateAnim();
+
+        await this.returnCardAnim();
+    }
+
+    async revealCardAnim(playerID, ) {
+        const { reveal } = ANIM.card;
+        this.#onAnimation = true;
+
+        const revealPos = Vector3.add(this.ogPos, reveal.card.posOffset);
+        let revealRot = Vector3.add(this.ogRot, reveal.card.rotOffset);
+        // Player will not be affected by it's own rotation
+        if(playerID == 0) revealRot = new Vector3(0.0, 180.0, 0.0);
+
+        await this.animator.positionAnimation({to: revealPos, ...reveal.card.translation});
+        await this.animator.rotationAnimation({to: revealRot, ...reveal.card.rotation});
+
+        // To stop the animation, needs to call another animation function
+    }
+
+    async returnCardAnim() {
+        // Only called after revealCardAnim()
+        const { drawPile } = OBJ;
+        const { returnDrawPile } = ANIM.card;
+        
+        await Promise.all([ // Going in front of the draw Pile
+            this.animator.positionAnimation({
+                to: Vector3.add(drawPile.middlePos, returnDrawPile.drawPileOffset),
+                ...returnDrawPile.translation
+            }),
+            this.animator.rotationAnimation({
+                to: new Vector3(90, drawPile.rotation.y, 0.0),
+                ...returnDrawPile.rotation
+            }),
+            this.animator.scaleAnimation({ // To avoid conflit with draw pile
+                to: Vector3.subtract(this.ogScale, new Vector3(0.02, 0.02, 0.0)),
+                ...returnDrawPile.scale
+            })
+        ]);
+
+        await this.animator.positionAnimation({ // Entering into draw pile
+            to: drawPile.middlePos, ...returnDrawPile.drawPileTranslation
+        });
+
+        this.#onAnimation = false;
+    }
+
+    async disappearAnim() {
+        await Promise.all([
+            this.animator.scaleAnimation({
+                to: new Vector3(0.0, 0.0, 0.0),
+                animTime: 1.0,
+                animCurve: linearCurve
+            }),
+            this.animator.rotationAnimation({
+                to: new Vector3(720.0, 720.0, 0.0),
+                animTime: 1.0,
+                animCurve: linearCurve
+            })
+        ]);
+    }
+
+    async stopRevealAnim() {
+        // Only called after reveal or levitation anim
+        // Returning to hand
+        const { reveal } = ANIM.card;
+        this.#onAnimation = true;
+
+        await this.animator.rotationAnimation({to: this.ogRot, ...reveal.card.rotation});
+        await this.animator.positionAnimation({to: this.ogPos, ...reveal.card.inverseTranslation});
+
+        this.#onAnimation = false;
+    }
+
+    async exchangeAnim(otherCard) {
+        const { levitateOffset } = ANIM.card.levitateAboveHand;
+        const { translateAnim }  = ANIM.card.exchange;
 
         this.#onAnimation = true;
         const newPos = otherCard.ogPos.clone();
         const newRot = otherCard.ogRot.clone();
 
         // First Levitation
-        await Promise.all([
-            this.animator.positionAnimation({
-                to: Vector3.add(this.ogPos, levitateOffset),
-                ...levitateAnim
-            }),
-            this.animator.rotationAnimation({
-                to: new Vector3(90, this.rotation.y, 0),
-                ...levitateAnim
-            })
-        ]);
+        await this.#levitateAnim();
 
         // Translation
         await Promise.all([
@@ -73,45 +160,30 @@ export default class Card extends RenderableObject {
         ]);
 
         // Second Levitation (falling into the hand)
-        await Promise.all([
-            this.animator.positionAnimation({
-                to: newPos,
-                ...levitateAnim
-            }),
-            this.animator.rotationAnimation({
-                to: newRot,
-                ...levitateAnim
-            })
-        ]);
+        this.#levitateAnim({reverse: true, handPos: newPos, handRot: newRot});
 
         this.ogPos = newPos;
         this.ogRot = newRot;
         this.#onAnimation = false;
     }
 
-    async startShowingAnim(playerID) {
-        const { showCard } = ANIM;
+    #levitateAnim(config = {}) {
+        // Levitates the card above hand
+        const { levitateAnim, levitateOffset } = ANIM.card.levitateAboveHand;
+        const { reverse = false, handPos = null, handRot = null } = config;
         this.#onAnimation = true;
 
-        const showPos = Vector3.add(this.ogPos, showCard.card.posOffset);
-        let showRot = Vector3.add(this.ogRot, showCard.card.rotOffset);
-        // Player will not be affected by it's own rotation
-        if(playerID == 0) showRot = new Vector3(0.0, 180.0, 0.0);
+        let pos, rot;
+        if(reverse) {
+            pos = handPos; rot = handRot;
+        } else {
+            pos = Vector3.add(this.ogPos, levitateOffset);
+            rot = new Vector3(90, this.rotation.y, 0.0);
+        }
 
-        await this.animator.positionAnimation({to: showPos, ...showCard.card.translation});
-        await this.animator.rotationAnimation({to: showRot, ...showCard.card.rotation});
-
-        // To stop the animation, needs to call another animation function
-    }
-
-    async stopShowingAnim() {
-        // Returning to hand
-        const { showCard } = ANIM;
-        this.#onAnimation = true;
-
-        await this.animator.rotationAnimation({to: this.ogRot, ...showCard.card.rotation});
-        await this.animator.positionAnimation({to: this.ogPos, ...showCard.card.inverseTranslation});
-
-        this.#onAnimation = false;
+        return Promise.all([
+            this.animator.positionAnimation({ to: pos, ...levitateAnim }),
+            this.animator.rotationAnimation({ to: rot, ...levitateAnim})
+        ]);
     }
 }

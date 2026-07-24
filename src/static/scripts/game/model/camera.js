@@ -92,41 +92,6 @@ export default class Camera {
         
     }
 
-    processKeyboardMovement(dir, deltaTime) {
-        if(!this.#allowMovement) return;
-
-        const vel = 2 * deltaTime;
-
-        if(dir == CameraMovement.FORWARD)
-            this.position = Vector3.add(this.position, Vector3.mult(this.#front, vel));
-        
-        else if(dir == CameraMovement.BACKWARD)
-            this.position = Vector3.subtract(this.position, Vector3.mult(this.#front, vel));
-
-        else if(dir == CameraMovement.LEFT)
-            this.position = Vector3.subtract(this.position, Vector3.mult(this.#right, vel));
-
-        else if(dir == CameraMovement.RIGHT)
-            this.position = Vector3.add(this.position, Vector3.mult(this.#right, vel));
-    }
-
-    processMouseMovement(xOffset, yOffset, constraintPitch = true) {
-        if(!this.#allowMovement) return;
-
-        xOffset *= 0.5;
-        yOffset *= 0.5;
-
-        this.yaw   += xOffset;
-        this.pitch += yOffset;
-
-        if(constraintPitch){
-            if(this.pitch > 89.0) this.pitch = 89.0;
-            if(this.pitch < -89.0) this.pitch = -89.0;
-        }
-
-        this.#updateCameraVectors();
-    }
-
     startLooking(object, zoom = null){
         this.#lookTarget = object;
         this.#looking = true;

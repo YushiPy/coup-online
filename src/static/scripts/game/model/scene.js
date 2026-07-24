@@ -45,18 +45,13 @@ export default class Scene {
     }
 
     processInput(dt, keys) {
-        if(keys['KeyW']) this.camera.processKeyboardMovement(CameraMovement.FORWARD, dt);
-        if(keys['KeyS']) this.camera.processKeyboardMovement(CameraMovement.BACKWARD, dt);
-        if(keys['KeyA']) this.camera.processKeyboardMovement(CameraMovement.LEFT, dt);
-        if(keys['KeyD']) this.camera.processKeyboardMovement(CameraMovement.RIGHT, dt);
-
-        if(keys['KeyC']) this.players[0].coinStack.spend(2); keys['KeyC'] = false;
-        if(keys['KeyV']) this.players[0].coinStack.buy(2);   keys['KeyV'] = false;
+        if(keys['KeyC']) this.players[0].spend(2); keys['KeyC'] = false;
+        if(keys['KeyV']) this.players[0].buy(2);   keys['KeyV'] = false;
 
         if(keys['KeyE']) this.players[0].exchangeCard(0, this.players[1], 0); keys['KeyE'] = false;
-        if(keys['KeyR']) this.showCard(this.players[2], 0); keys['KeyR'] = false;
+        if(keys['KeyR']) this.players[1].revealCard(0, this.camera); keys['KeyR'] = false;
+        if(keys['KeyS']) this.players[0].returnCard(0);  keys['KeyS'] = false;
     }
-
     
     /**
      * Checks if mouse is hovering an object
@@ -82,6 +77,7 @@ export default class Scene {
         let closestHit = null;
         let minDist = Infinity;
         for(const ro of iterableObjects) {
+            if(!ro) continue;
             const hit = ro.intersectRay(ray);
 
             if(hit) {
@@ -114,27 +110,5 @@ export default class Scene {
             coins.push(...p.coinStack.getAllCoins());
         }
         return { cards, coins };
-    }
-
-    // Actions
-    async showCard(player, cardID) {
-        const { showCard } = ANIM
-        const card = player.cards[cardID];
-        const id = player.id;
-        
-        // User animation doesn't use camera
-        if(id != 0) this.camera.startLooking(card, showCard.cameraZoom);
-        card.startShowingAnim(id);
-        
-        await new Promise((resolve) => {
-            setTimeout(resolve, showCard.totalAnimTime * showCard.cameraTime * 1000);
-        });
-        // Camera may end animation before card
-        if(id != 0) this.camera.stopLooking();
-
-        await new Promise((resolve) => {
-            setTimeout(resolve, showCard.totalAnimTime * (1-showCard.cameraTime) * 1000);
-        })
-        card.stopShowingAnim();
     }
 }
