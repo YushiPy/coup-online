@@ -63,7 +63,7 @@ async def validation_exception_handler(
 	error_code = FIELD_ERROR_CODES.get(field, ErrorCode.UNKNOWN_ERROR)
 
 	return JSONResponse(
-		status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+		status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
 		content={"detail": {"error_code": error_code, "detail": first_error["msg"]}},
 	)
 
