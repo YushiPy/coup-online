@@ -104,6 +104,13 @@ export class Vector3 extends Array{
     }
 }
 
+export const addv3 =  Vector3.add;
+export const subv3 =  Vector3.subtract;
+export const multv3 = Vector3.mult;
+export const divv3 =  Vector3.divide;
+
+export const normv3 = Vector3.normalize;
+
 export class Mat4 extends Array{
     constructor(fillVal) {
         super(4);

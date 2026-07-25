@@ -1,5 +1,5 @@
-import { GAME, INIT_CAM, OBJ, PLAYERS } from '../settings.js';
-import { Vector3 } from "../utils/wglm-classes.js";
+import { ANIM, GAME, INIT_CAM, OBJ, PLAYERS } from '../settings.js';
+import { Vector3, addv3 } from "../utils/wglm-classes.js";
 
 import Card from "./objects/card.js";
 import Coin from "./objects/coin.js";
@@ -54,7 +54,7 @@ export default class SceneBuilder {
 
         // User Objects
         for(let key in user.pos) 
-            user.pos[key] = Vector3.add(user.pos[key], INIT_CAM.position); 
+            user.pos[key] = addv3(user.pos[key], INIT_CAM.position); 
     
         // Other Players Objects
         [upper.pos, side.pos].forEach(p => {
@@ -73,10 +73,20 @@ export default class SceneBuilder {
         // Supplies
         drawPile.position.z += playerDistance;
         coinBank.position.z += playerDistance;
-        coinBank.middlePos = Vector3.add(
+        
+        drawPile.middlePos = addv3(
+            drawPile.position,
+            new Vector3(0, (drawPile.count / 2) * drawPile.heightPadding, 0)
+        );
+        coinBank.middlePos = addv3(
             coinBank.position,
             new Vector3(0, (coinBank.count / 2) * coinBank.heightPadding, 0)
         );
+
+        drawPile.cardInFront = { };
+        drawPile.cardInFront.pos = addv3(drawPile.middlePos, ANIM.card.returnDrawPile.drawPileOffset);
+        drawPile.cardInFront.rot = new Vector3(90, drawPile.rotation.y, 0.0);
+
 
         this.configsApplied = true;
     }

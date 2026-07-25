@@ -1,4 +1,4 @@
-import { INIT_CAM } from '../settings.js'
+import { GAME, INIT_CAM } from '../settings.js'
 import { Vector2, Vector3 } from '../utils/wglm-classes.js'
 import * as wglm from '../utils/wglm.js'
 
@@ -15,36 +15,50 @@ import SceneBuilder from './sceneBuilder.js';
  * @typedef {Scene}
  */
 export default class Scene {
+    gameManager;
     camera; players;
     drawPile; coinBank;
 
     #hoveredObject = null;
     
     constructor() {
-        this.camera = new Camera(INIT_CAM.position, new Vector3(0, 1, 0), INIT_CAM.yaw, INIT_CAM.pitch, INIT_CAM.zoom);
+        this.camera = new Camera(
+            INIT_CAM.position, 
+            new Vector3(0, 1, 0), 
+            INIT_CAM.yaw, 
+            INIT_CAM.pitch,
+            INIT_CAM.zoom
+        );
         
         const { players, drawPile, coinBank } = SceneBuilder.build();
         this.players  = players;
         this.drawPile = drawPile;
-        this.coinBank = coinBank; 
+        this.coinBank = coinBank;
     }
 
     update(dt, keys) {
         this.processInput(dt, keys);
 
+        this.camera.update(dt);
         this.players.forEach(player => player.update(dt));
     }
 
     processInput(dt, keys) {
-        if(keys['KeyW']) this.camera.processKeyboardMovement(CameraMovement.FORWARD, dt);
-        if(keys['KeyS']) this.camera.processKeyboardMovement(CameraMovement.BACKWARD, dt);
-        if(keys['KeyA']) this.camera.processKeyboardMovement(CameraMovement.LEFT, dt);
-        if(keys['KeyD']) this.camera.processKeyboardMovement(CameraMovement.RIGHT, dt);
+        if(keys['KeyQ']) this.players[0].revealCard(0, this.camera); keys['KeyQ'] = false;
+        if(keys['KeyW']) this.players[1].revealCard(0, this.camera); keys['KeyW'] = false;
+        if(keys['KeyE']) this.players[2].revealCard(0, this.camera); keys['KeyE'] = false;
+        if(keys['KeyR']) this.players[3].revealCard(0, this.camera); keys['KeyR'] = false;
 
-        if(keys['KeyC']) this.players[0].coinStack.spend(); keys['KeyC'] = false;
-        if(keys['KeyV']) this.players[0].coinStack.buy();   keys['KeyV'] = false;
+        if(keys['KeyA']) this.players[0].returnCard(0); keys['keyA'] = false;
+        if(keys['KeyS']) this.players[0].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyS'] = false;
+        if(keys['KeyD']) this.players[2].returnCard(0); keys['keyD'] = false;
+        if(keys['KeyF']) this.players[2].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyF'] = false;
+
+        if(keys['KeyZ']) this.players[0].buy(2);   keys['KeyZ'] = false;
+        if(keys['KeyX']) this.players[0].spend(2); keys['KeyX'] = false;
+        if(keys['KeyC']) this.players[1].buy(2);   keys['KeyC'] = false;
+        if(keys['KeyV']) this.players[1].spend(2); keys['KeyV'] = false;
     }
-
     
     /**
      * Checks if mouse is hovering an object
@@ -70,6 +84,7 @@ export default class Scene {
         let closestHit = null;
         let minDist = Infinity;
         for(const ro of iterableObjects) {
+            if(!ro) continue;
             const hit = ro.intersectRay(ray);
 
             if(hit) {
