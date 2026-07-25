@@ -6,7 +6,8 @@ from sqlmodel.pool import StaticPool
 from backend.database import get_session
 from backend.main import app
 from backend.models.player import Player
-from backend.models.match import Match
+from backend.models.match import Match, MatchSettings
+import backend.routers.websockets as ws
 
 
 @pytest.fixture(name="session")
@@ -14,19 +15,24 @@ def session_fixture():
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
+
+    # Manually overriding websockets engine because it is not
+    # using SessionDep(), and instead creating its own session
+    ws.engine = engine
+
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
     SQLModel.metadata.drop_all(engine)
 
 
-@pytest.fixture
-def test_player(session: Session):
+@pytest.fixture(name="test_player")
+def player_fixture(session: Session):
     player = Player(
         username="some_name",
         password="some_password",
         password_confirmation="some_password",
-        display_name="Super Cool Player",
+        displayname="Super Cool Player",
         status="online",
     )
     session.add(player)
@@ -35,24 +41,31 @@ def test_player(session: Session):
     return player
 
 
-@pytest.fixture
-def test_public_match(session: Session, test_player):
+@pytest.fixture(name="test_public_match")
+def public_match_fixture(session: Session, test_player):
     match = Match(
         lobby_name="some_name",
         max_players=4,
         gamemode="classic",
         visibility="public",
         bot_fill="none",
+        join_code="public_match_code",
+        host_id=test_player.id,
     )
     match.players.append(test_player)
+
+    settings = MatchSettings(match_id=match.id, bot_fill="none")
+
     session.add(match)
+    session.add(settings)
     session.commit()
     session.refresh(match)
+    session.refresh(settings)
     return match
 
 
-@pytest.fixture
-def test_private_match(session: Session, test_player):
+@pytest.fixture(name="test_private_match")
+def private_match_fixture(session: Session, test_player):
     match = Match(
         lobby_name="some_name",
         max_players=4,
@@ -60,6 +73,8 @@ def test_private_match(session: Session, test_player):
         visibility="private",
         password="some_password",
         bot_fill="none",
+        join_code="private_match_code",
+        host_id=test_player.id,
     )
     match.players.append(test_player)
     session.add(match)

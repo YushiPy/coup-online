@@ -7,7 +7,12 @@ test_image = Path(__file__).parent / "test_image.png"
 
 def test_me(session, client, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.get("/api/profile/me")
     data = response.json()
@@ -22,7 +27,12 @@ def test_me(session, client, test_player):
 
 def test_set_display_name(session, client, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     new_display_name = "new display name"
     response = client.patch(
@@ -39,7 +49,12 @@ def test_set_display_name(session, client, test_player):
 def test_set_avatar(session, client, test_player, tmp_path):
     settings.avatar_upload_dir = tmp_path
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     with open(test_image, "rb") as file:
         response = client.post("/api/profile/avatar", files={"avatar": file})
