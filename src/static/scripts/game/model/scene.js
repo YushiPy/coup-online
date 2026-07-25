@@ -44,14 +44,20 @@ export default class Scene {
     }
 
     processInput(dt, keys) {
-        if(keys['KeyC']) this.players[3].spend(2); keys['KeyC'] = false;
-        if(keys['KeyV']) this.players[0].buy(2);   keys['KeyV'] = false;
+        if(keys['KeyQ']) this.players[0].revealCard(0, this.camera); keys['KeyQ'] = false;
+        if(keys['KeyW']) this.players[1].revealCard(0, this.camera); keys['KeyW'] = false;
+        if(keys['KeyE']) this.players[2].revealCard(0, this.camera); keys['KeyE'] = false;
+        if(keys['KeyR']) this.players[3].revealCard(0, this.camera); keys['KeyR'] = false;
 
-        if(keys['KeyE']) this.players[0].exchangeCard(0, this.players[1], 0); keys['KeyE'] = false;
-        if(keys['KeyR']) this.players[0].revealCard(0, this.camera); keys['KeyR'] = false;
-        if(keys['KeyS']) this.players[0].returnCard(0);  keys['KeyS'] = false;
-        
-        if(keys['KeyG']) this.players[0].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyG'] = false;
+        if(keys['KeyA']) this.players[0].returnCard(0); keys['keyA'] = false;
+        if(keys['KeyS']) this.players[0].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyS'] = false;
+        if(keys['KeyD']) this.players[2].returnCard(0); keys['keyD'] = false;
+        if(keys['KeyF']) this.players[2].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyF'] = false;
+
+        if(keys['KeyZ']) this.players[0].buy(2);   keys['KeyZ'] = false;
+        if(keys['KeyX']) this.players[0].spend(2); keys['KeyX'] = false;
+        if(keys['KeyC']) this.players[1].buy(2);   keys['KeyC'] = false;
+        if(keys['KeyV']) this.players[1].spend(2); keys['KeyV'] = false;
     }
     
     /**
