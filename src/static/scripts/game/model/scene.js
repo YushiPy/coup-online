@@ -1,7 +1,6 @@
-import { GAME, ANIM, INIT_CAM } from '../settings.js'
+import { GAME, INIT_CAM } from '../settings.js'
 import { Vector2, Vector3 } from '../utils/wglm-classes.js'
 import * as wglm from '../utils/wglm.js'
-import { easeInOutCurve, linearCurve } from '../utils/wlgm-animation-curves.js';
 
 import Camera, { CameraMovement } from "./camera.js";
 import SceneBuilder from './sceneBuilder.js';
@@ -45,11 +44,11 @@ export default class Scene {
     }
 
     processInput(dt, keys) {
-        if(keys['KeyC']) this.players[0].spend(2); keys['KeyC'] = false;
+        if(keys['KeyC']) this.players[3].spend(2); keys['KeyC'] = false;
         if(keys['KeyV']) this.players[0].buy(2);   keys['KeyV'] = false;
 
         if(keys['KeyE']) this.players[0].exchangeCard(0, this.players[1], 0); keys['KeyE'] = false;
-        if(keys['KeyR']) this.players[1].revealCard(0, this.camera); keys['KeyR'] = false;
+        if(keys['KeyR']) this.players[0].revealCard(0, this.camera); keys['KeyR'] = false;
         if(keys['KeyS']) this.players[0].returnCard(0);  keys['KeyS'] = false;
         
         if(keys['KeyG']) this.players[0].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyG'] = false;

@@ -21,7 +21,7 @@ export default class RenderableObject {
     #mesh; #material;
     #isDirty = true; #cachedModelMatrix = null;
 
-    constructor(name, initPos, initRotation, initScale) {
+    constructor(name, initPos, initRotation, initScale, animator = null) {
         this.#position = this.#bindVector(initPos.clone());
         this.#scale    = this.#bindVector(initScale.clone());
         this.#rotation = this.#bindVector(initRotation.clone());
@@ -30,7 +30,8 @@ export default class RenderableObject {
         this.#mesh = mesh;
         this.#material = material;
 
-        this.animator = new ObjectAnimator(this);
+        if(animator) this.animator = animator;
+        else this.animator = new ObjectAnimator(this);
     }
     
     get position()  { return this.#position };

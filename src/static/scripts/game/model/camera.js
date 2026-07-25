@@ -1,5 +1,5 @@
 import * as wglm from "../utils/wglm.js";
-import { Vector2, Vector3, Ray } from '../utils/wglm-classes.js';
+import { Vector2, Vector3, addv3, multv3, normv3, Ray } from '../utils/wglm-classes.js';
 import { ANIM } from "../settings.js";
 
 import { CameraAnimator } from "../view/animation.js";
@@ -62,7 +62,7 @@ export default class Camera {
      * @returns {Float32Array} 
      */
     getView() {
-        return wglm.lookAt(this.position, Vector3.add(this.position, this.#front), this.#up).flatten();
+        return wglm.lookAt(this.position, addv3(this.position, this.#front), this.#up).flatten();
     }
      
     /**
@@ -82,13 +82,13 @@ export default class Camera {
         viewPoint.x *= aspectRatio;
 
         // Rotating the ray according to camera's rotattion
-        const rayDirRight = Vector3.mult(this.#right, viewPoint.x);
-        const rayDirUp    = Vector3.mult(this.#up, viewPoint.y);
+        const rayDirRight = multv3(this.#right, viewPoint.x);
+        const rayDirUp    = multv3(this.#up, viewPoint.y);
 
-        let rayDir = Vector3.add(this.#front, rayDirRight);
-        rayDir = Vector3.add(rayDir, rayDirUp);
+        let rayDir = addv3(this.#front, rayDirRight);
+        rayDir = addv3(rayDir, rayDirUp);
 
-        return new Ray(this.position.clone(), Vector3.normalize(rayDir));
+        return new Ray(this.position.clone(), normv3(rayDir));
         
     }
 
@@ -123,9 +123,9 @@ export default class Camera {
         newFront.y = Math.sin(pitchRadians);
         newFront.z = Math.sin(yawRadians) * Math.cos(pitchRadians);
 
-        this.#front = Vector3.normalize(newFront);
-        this.#right = Vector3.normalize(Vector3.cross(this.#front, this.#worldUp));
-        this.#up    = Vector3.normalize(Vector3.cross(this.#right, this.#front));
+        this.#front = normv3(newFront);
+        this.#right = normv3(Vector3.cross(this.#front, this.#worldUp));
+        this.#up    = normv3(Vector3.cross(this.#right, this.#front));
     }
 
     async #lookObject() {
@@ -143,7 +143,7 @@ export default class Camera {
 
     #lookAngle(point) {
         let dir = Vector3.subtract(this.#lookTarget.position, this.position);
-        dir = Vector3.normalize(dir);
+        dir = normv3(dir);
 
         const pitchRad = Math.asin(dir.y);
         // why atan2: Look the "ground" plane from above
