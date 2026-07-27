@@ -66,6 +66,12 @@ MATCH_SETTINGS_SCHEMA: dict[str, dict[str, int]] = {
 	# Cross-checked against character_copies/max_players/exchange_draw_cards
 	# below, since a small deck can't necessarily support a bigger hand.
 	"cards_per_player": {"min": 1, "max": 5, "default": 2},
+	# Reformation expansion: the coin cost for a player to change their own
+    # religion (self_conversion_coins) or to force another player to change
+    # theirs (force_conversion_coins). Coins spent on either of these actions
+    # are deposited into the match's Treasury for the Embezzle action.
+    "self_conversion_coins": {"min": 1, "max": 10,"default": 1},
+	"force_conversion_coins": {"min": 1, "max": 10,"default": 2}
 }
 
 MATCH_SETTINGS_BOOL_FIELDS: tuple[str, ...] = (

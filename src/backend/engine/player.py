@@ -5,3 +5,4 @@ class Player:
         self.coins = starting_coins
         self.alive = True
         self.cards = []
+        self.religion = None
