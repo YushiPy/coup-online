@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -10,7 +11,9 @@ from backend import constants
 from backend.auth.required import RequiredRegisteredOrGuestDep
 from backend.database import engine
 from backend.errors import ErrorCode
+from backend.engine.enums import ClientEvent, MatchEvent
 from backend.engine.match import Match as EngineMatch
+from backend.engine.player import Player as EnginePlayer
 from backend.engine import registry as engine_registry
 from backend.models.match import Match, MatchBotFill, MatchSettings, MatchStatus, validate_settings_patch
 from backend.models.player import Player, make_bot_player
@@ -224,6 +227,18 @@ async def _send_snapshot(websocket: WebSocket, session: Session, match_id: uuid.
 			continue
 		players_out.append(_player_out(match, link, player))
 
+	# If the match is already running (or just finished), a reconnecting
+	# client needs more than the lobby roster -- whose turn it is, the
+	# current phase, and their own hand. This is a full resync, never an
+	# event replay: exactly the same 'state' shape every in-match event
+	# carries (see _match_state_payload), just delivered on connect
+	# instead of in response to something happening.
+	game_state = None
+	if match.status in (MatchStatus.IN_PROGRESS, MatchStatus.FINISHED):
+		engine_match = engine_registry.get_match(str(match_id))
+		if engine_match:
+			game_state = _match_state_payload(engine_match, str(local_player_id))
+
 	await websocket.send_json({
 		"type": "state_snapshot",
 		"payload": {
@@ -240,6 +255,7 @@ async def _send_snapshot(websocket: WebSocket, session: Session, match_id: uuid.
 			"settings": _settings_payload(settings),
 			"ping_cooldown_until": _as_utc(match.ping_cooldown_until).isoformat() if match.ping_cooldown_until else None,
 			"ping_count": match.ping_count,
+			"game_state": game_state,
 		},
 	})
 
@@ -608,6 +624,13 @@ async def handle_start_match(session: Session, websocket: WebSocket, match_id: u
 			next_join_order += 1
 		match.player_count += len(bot_links)
 
+	# Real Coup needs at least 2 players — engine.Match enforces this too,
+	# but checking it here lets a too-small lobby (bot_fill=none, one lone
+	# human) fail with a clean, specific error instead of an unhandled
+	# ValueError out of the EngineMatch constructor below.
+	if len(required) + len(bot_links) < 2:
+		raise _WsError(ErrorCode.NOT_ENOUGH_PLAYERS, "At least 2 players are needed to start.")
+
 	match.status = MatchStatus.IN_PROGRESS
 	session.add(match)
 	session.commit()
@@ -621,8 +644,34 @@ async def handle_start_match(session: Session, websocket: WebSocket, match_id: u
 	# durable to persist engine state yet (game.html/the in-match router
 	# don't exist), same "lives only as long as this process does" shape as
 	# the ConnectionManager above.
+	#
+	# engine.Player is built here, from the seated DB rows, rather than
+	# inside EngineMatch: displayname/avatar_url are a one-time snapshot of
+	# that row (see engine/player.py's docstring for why), and the engine
+	# has no DB session of its own to look them up with later.
+	seated_engine_players: list[EnginePlayer] = []
+	for link in sorted(required, key=lambda l: l.join_order):
+		seated_player = session.get(Player, link.player_id)
+		if seated_player:
+			seated_engine_players.append(
+				EnginePlayer(id=str(seated_player.id), displayname=seated_player.displayname, avatar_url=seated_player.avatar_url)
+			)
+	for bot_link in bot_links:
+		bot_player = session.get(Player, bot_link.player_id)
+		if bot_player:
+			seated_engine_players.append(
+				EnginePlayer(id=str(bot_player.id), displayname=bot_player.displayname, avatar_url=bot_player.avatar_url)
+			)
+
+	# -1 (the schema's "infinite copies" sentinel, see constants.py) needs
+	# no translation here: engine.Deck already treats any non-positive
+	# character_copies as infinite, so it's passed straight through.
 	engine_match = EngineMatch(
 		id=str(match.id),
+		players=seated_engine_players,
+		cards_per_player=settings.cards_per_player,
+		character_copies=settings.character_copies,
+		starting_coins=settings.starting_coins,
 		coup_cost=settings.coup_cost,
 		forced_coup_threshold=settings.forced_coup_threshold,
 		income_coins=settings.income_coins,
@@ -635,19 +684,223 @@ async def handle_start_match(session: Session, websocket: WebSocket, match_id: u
 		declared_coup=settings.declared_coup,
 		declared_assassinate=settings.declared_assassinate,
 	)
-	for link in sorted(required, key=lambda l: l.join_order):
-		seated_player = session.get(Player, link.player_id)
-		if seated_player:
-			engine_match.add_player(str(seated_player.id), seated_player.displayname)
-	for bot_link in bot_links:
-		bot_player = session.get(Player, bot_link.player_id)
-		if bot_player:
-			engine_match.add_player(str(bot_player.id), bot_player.displayname)
-	engine_match.start_match(
-		copies_by_card=None if settings.character_copies == -1 else settings.character_copies,
-		starting_coins=settings.starting_coins,
-	)
+	result = engine_match.start_match()
 	engine_registry.set_match(str(match.id), engine_match)
+	# Previously discarded -- nobody ever learned whose turn it was until
+	# this was added, since start_match()'s NEW_TURN result just fell on
+	# the floor here. See _drive_and_broadcast below.
+	await _drive_and_broadcast(session, match_id, engine_match, result)
+
+
+# ---------------------------------------------------------------------------
+# In-match gameplay
+#
+# Everything below drives a live backend.engine.match.Match (looked up from
+# engine_registry, see handle_start_match above) once a lobby has actually
+# started. It follows the client's event + full-state contract from the
+# match-view spec: every message carries the event that just happened plus
+# a complete, per-recipient snapshot of the match -- never just a diff, and
+# never something the client is expected to reconstruct by replaying past
+# events.
+# ---------------------------------------------------------------------------
+
+def _match_state_payload(engine_match: EngineMatch, viewer_id: str) -> dict:
+	"""The 'state' block sent alongside every in-match event. Public
+	information about every player, plus the recipient's own hand -- never
+	anyone else's hand, and never a card that's been swapped back into the
+	deck after a won challenge (only genuinely lost cards, in
+	Player.lost_cards, are public)."""
+	td = engine_match.turn_description
+	players = {
+		pid: {
+			"display_name": player.displayname,
+			"avatar_url": player.avatar_url,
+			"coins": player.coins,
+			"alive": player.alive,
+			"num_hidden_cards": len(player.cards),
+			"revealed_cards": list(player.lost_cards),
+		}
+		for pid, player in engine_match.players.items()
+	}
+	turn_player_id = (
+		engine_match.order[engine_match.turn_id] if engine_match.status["started"] else None
+	)
+	viewer = engine_match.players.get(viewer_id)
+	return {
+		"phase": engine_match.status["current_match_state"],
+		"finished": engine_match.status["finished"],
+		"turn_order": list(engine_match.order),
+		"turn_player_id": turn_player_id,
+		"players": players,
+		"turn_description": {
+			"source_id": td["source_id"],
+			"target_id": td["target_id"],
+			"action": td["action"],
+			"declared_card": td["declared_card"],
+			"blocker_id": td["blocker_id"],
+			"challenger_id": td["challenger_id"],
+			"block_claimed_card": td["block_claimed_card"],
+			"exchange_player_id": td["exchange_player_id"],
+			"exchange_return_count": td["exchange_return_count"],
+			"players_passed_action": list(td["players_passed_action"]),
+			"players_passed_block": list(td["players_passed_block"]),
+			# Who's picking a card during WAITING_CARD_LOSS -- not
+			# necessarily the action's target (a challenge can send the
+			# source, the blocker, or the challenger to lose a card
+			# instead, see TurnDescription's docstring). Exposed here so
+			# a reconnecting/resyncing client can show "choosing a card
+			# to lose" for the right player from the state alone, the
+			# same way it already can for whose turn it is, rather than
+			# only knowing this from the event that happened to trigger
+			# it.
+			"card_loss_player_id": td["card_loss_player_id"],
+		},
+		"your_hand": list(viewer.cards) if viewer else [],
+	}
+
+
+# Engine states that resolve themselves with no further player input --
+# see engine/match.py's TurnDescription docstring and the corresponding
+# methods. Chained by _advance_engine below rather than dispatched through
+# process_event(), which (by design) no-ops for these: nothing the client
+# sends should ever be what triggers them.
+_AUTO_ADVANCE: dict[MatchEvent, Callable[[EngineMatch], dict]] = {
+	MatchEvent.ACTION_CONFIRMED: lambda m: m.make_action(),
+	MatchEvent.BLOCK_CONFIRMED: lambda m: m.cancel_action(),
+	MatchEvent.ACTION_CHALLENGE_CONFIRMED: lambda m: m.resolve_action_challenge(),
+	MatchEvent.BLOCK_CHALLENGE_CONFIRMED: lambda m: m.resolve_block_challenge(),
+	MatchEvent.TURN_RESOLVED: lambda m: m.new_turn(),
+}
+
+
+def _advance_engine(engine_match: EngineMatch, result: dict) -> list[dict]:
+	"""Repeatedly steps the engine through auto-resolving states (see
+	_AUTO_ADVANCE), collecting every intermediate event in the order they
+	happened. The caller broadcasts each one separately rather than just
+	the final outcome -- per the spec's Animation Policy, the server
+	advances the match immediately and clients animate through each step
+	afterward, so nothing here should wait for or depend on how long that
+	takes on the client side."""
+	events = [result]
+	step = _AUTO_ADVANCE.get(result.get("event"))
+	while step is not None:
+		result = step(engine_match)
+		events.append(result)
+		step = _AUTO_ADVANCE.get(result.get("event"))
+	return events
+
+
+async def _broadcast_engine_event(match_id: uuid.UUID, engine_match: EngineMatch, event: dict) -> None:
+	"""Sends one engine event to every seated player. Each gets the same
+	event fields and their own tailored state snapshot -- except 'cards'/
+	'new_cards', which only ever belong to whichever player the event's
+	own 'player_id' names (a hand mid-selection, or a fresh exchange
+	draw); stripped for everyone else so a card-loss or exchange prompt
+	never leaks the deciding player's hand to the rest of the table."""
+	owner_id = event.get("player_id")
+	for player_id_str in engine_match.players:
+		payload = dict(event)
+		if player_id_str != owner_id:
+			payload.pop("cards", None)
+			payload.pop("new_cards", None)
+		try:
+			player_uuid = uuid.UUID(player_id_str)
+		except ValueError:
+			continue  # bots have no socket to send to
+		await manager.send_to_player(match_id, player_uuid, {
+			"type": "match_event",
+			"payload": {**payload, "state": _match_state_payload(engine_match, player_id_str)},
+		})
+
+
+async def _drive_and_broadcast(session: Session, match_id: uuid.UUID, engine_match: EngineMatch, result: dict) -> None:
+	"""Advances the engine as far as it will go on its own and broadcasts
+	every step. Also the single place a finished match's DB row gets
+	flipped to FINISHED -- the engine match itself stays in the registry
+	(a late reconnect should still see the final state)."""
+	for event in _advance_engine(engine_match, result):
+		await _broadcast_engine_event(match_id, engine_match, event)
+		if event.get("event") == MatchEvent.END_OF_MATCH:
+			match = session.get(Match, match_id)
+			if match and match.status == MatchStatus.IN_PROGRESS:
+				match.status = MatchStatus.FINISHED
+				session.add(match)
+				session.commit()
+
+
+def _require_engine_match(match: Match) -> EngineMatch:
+	if match.status != MatchStatus.IN_PROGRESS:
+		raise _WsError(ErrorCode.MATCH_NOT_IN_PROGRESS, "The match is not in progress.")
+	engine_match = engine_registry.get_match(str(match.id))
+	if not engine_match:
+		raise _WsError(ErrorCode.MATCH_NOT_IN_PROGRESS, "This match has no active game state.")
+	return engine_match
+
+
+async def _handle_in_match_event(
+	session: Session,
+	websocket: WebSocket,
+	match_id: uuid.UUID,
+	player_id: uuid.UUID,
+	request_id: str | None,
+	event: ClientEvent,
+	extra: dict,
+) -> None:
+	"""Shared body for every gameplay handler below: look up the live
+	engine.Match, feed it the client's event, ack, then drive and
+	broadcast however many auto-resolving steps follow."""
+	match = session.get(Match, match_id)
+	if not match:
+		raise _WsError(ErrorCode.MATCH_NOT_FOUND, "Match not found.")
+	engine_match = _require_engine_match(match)
+	try:
+		result = engine_match.process_event(str(player_id), {"event": event, **extra})
+	except ValueError as e:
+		raise _WsError(ErrorCode.INVALID_ACTION, str(e))
+	await websocket.send_json({"type": "ack", "request_id": request_id, "payload": {}})
+	await _drive_and_broadcast(session, match_id, engine_match, result)
+
+
+async def handle_chosen_action(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.CHOSEN_ACTION, {
+		"action": payload.get("action"),
+		"target_id": payload.get("target_player_id"),
+		"declared_card": payload.get("declared_card"),
+	})
+
+
+async def handle_pass(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.PASS, {})
+
+
+async def handle_block(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	# claimed_card: which character is being claimed to block with. Fixed
+	# for Foreign Aid/Assassinate, but a real choice for Steal (Captain or
+	# Ambassador) -- see enums.BLOCK_CLAIMS. The engine validates it, not
+	# this handler.
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.BLOCK, {
+		"claimed_card": payload.get("claimed_card"),
+	})
+
+
+async def handle_challenge(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.CHALLENGE, {})
+
+
+async def handle_reveal_cards(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.REVEAL_CARDS, {})
+
+
+async def handle_selected_card(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.SELECTED_CARD, {
+		"selected_card": payload.get("selected_card"),
+	})
+
+
+async def handle_selected_cards(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
+	await _handle_in_match_event(session, websocket, match_id, player_id, request_id, ClientEvent.SELECTED_CARDS, {
+		"selected_cards": payload.get("selected_cards"),
+	})
 
 
 async def handle_leave(session: Session, websocket: WebSocket, match_id: uuid.UUID, player_id: uuid.UUID, request_id: str | None, payload: dict) -> None:
@@ -707,6 +960,17 @@ _HANDLERS = {
 	"ping_unready": handle_ping_unready,
 	"start_match": handle_start_match,
 	"leave": handle_leave,
+	# In-match gameplay (see the "In-match gameplay" section above) -- the
+	# same per-match socket used for the lobby carries these too, since a
+	# match's status just flips from waiting to in_progress on the same
+	# connection rather than opening a second socket.
+	"chosen_action": handle_chosen_action,
+	"pass": handle_pass,
+	"block": handle_block,
+	"challenge": handle_challenge,
+	"reveal_cards": handle_reveal_cards,
+	"selected_card": handle_selected_card,
+	"selected_cards": handle_selected_cards,
 }
 
 
