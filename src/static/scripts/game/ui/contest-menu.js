@@ -163,7 +163,7 @@ const ContestMenu = (() => {
 		for (let choice of choices) {
 
 			const neutral = ['pass', 'challenge', 'reveal'].includes(choice.choice)
-			const owned = choice && !neutral ? (state.yourHand || []).includes(choice) : null;
+			const owned = choice.sub && !neutral ? (state.yourHand || []).includes(choice.sub) : null;
 
 			const icon = CONTEST_ICONS[choice.sub]
 				? `<img class="menu-icon menu-icon-img" src="/static/assets/img/game/action-icons/${escapeAttr(CONTEST_ICONS[choice.sub])}" alt="" aria-hidden="true">`
@@ -202,7 +202,7 @@ const ContestMenu = (() => {
 		}
 
 		return `
-			<div class="">Choose Reaction</div>
+			<div class="contest-menu-title">Choose Reaction</div>
 			<div class="menu-horizontal-line${hasNeutral ? "": " hidden"}"></div>
 			<div class="menu-neutral-section${hasNeutral ? "": " hidden"}">${sections.neutral}</div>
 			<div class="menu-horizontal-line${hasCards ? "": " hidden"}"></div>

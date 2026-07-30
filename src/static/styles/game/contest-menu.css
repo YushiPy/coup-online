@@ -58,9 +58,9 @@
 	background-color: #E4D4BC;
 	border: medium solid white;
 	border-radius: 0.5vw;
-	height: 40vh;
 	width: 15vw;
-	align-content: center;
+	padding-bottom: 1vh;
+	place-items: center;
 }
 
 .contest-menu .menu-sections * {
@@ -76,12 +76,14 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
-
-	place-items: center;
 	color: white;
 }
 
 /* TEXT */
+
+.contest-menu-title {
+	font-size: calc((2vh + 2vw) / 2);
+}
 
 .contest-menu .section-title {
 	font-size: calc((2vh + 2vw) / 2);
@@ -100,5 +102,5 @@
 /* ICONS */
 
 .contest-menu .menu-icon {
-	width: 2em;
+	width: calc((2vh + 2vw) / 2);;
 }
