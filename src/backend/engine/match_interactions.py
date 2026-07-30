@@ -70,6 +70,15 @@ class MatchInteractionResolver:
 	# only have one left, otherwise they're asked which one to give up.
 	def _resolve_card_loss(self, action: Action, source_id: str, target_id: str) -> dict[str, Any]:
 		cards = self.state.players[target_id].cards
+		if len(cards) == 0:
+			self.state.status["current_match_state"] = MatchEvent.TURN_RESOLVED
+			return {
+				"event": MatchEvent.TURN_RESOLVED,
+				"action": action,
+				"source_id": source_id,
+				"target_id": target_id,
+				"lost_card": None,
+			}	
 		if len(cards) == 1:
 			lost_card = cards.pop()
 			self.state.players[target_id].lost_cards.append(lost_card)

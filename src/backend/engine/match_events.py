@@ -274,6 +274,7 @@ class MatchEventProcessor:
             raise ValueError("You must choose one card to lose.")
 
         selected_card = data.get("selected_card")
+        selected_card = Card(selected_card)
         player = self.state.players[player_id]
         if selected_card not in player.cards:
             raise ValueError("You need to select cards that you own.")
@@ -327,6 +328,7 @@ class MatchEventProcessor:
         exchange_player_id = self.state.turn_description["exchange_player_id"] or self.state.turn_description["source_id"]
         return_count = self.state.turn_description["exchange_return_count"] or self.state.exchange_draw_cards
         selected_cards = data.get("selected_cards")
+        selected_cards = [Card(c) for c in selected_cards] if selected_cards else []
 
         # Catch errors
         if player_id != exchange_player_id:
