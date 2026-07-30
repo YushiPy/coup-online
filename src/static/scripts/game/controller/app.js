@@ -33,7 +33,7 @@ export default class App {
         this.#scene = new Scene();
         
         document.addEventListener('mousemove', (e) => this.#mouseMovementCallback(e));
-        document.addEventListener('keydown', (e) => this.#keys[e.code] = true);
+        document.addEventListener('keydown', (e) => { if(!e.repeat) this.#keys[e.code] = true; });
         document.addEventListener('keyup', (e) => this.#keys[e.code] = false);
     }
 
@@ -69,11 +69,6 @@ export default class App {
     #mouseMovementCallback(event) {
         let mouseX = event.offsetX;
         let mouseY = event.offsetY;
-
-        let xOffset = event.movementX;
-        let yOffset = -event.movementY;
-
-        this.#scene.camera.processMouseMovement(xOffset, yOffset);
 
         const mouseX_norm = (2.0 * mouseX) / this.#canvas.width - 1.0;
         const mouseY_norm = 1.0 - (2.0 * mouseY) / this.#canvas.height; // Y Inverted

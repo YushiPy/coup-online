@@ -10,7 +10,12 @@ from backend.models.player import Player
 @pytest.mark.parametrize("gamemode", ["classic", "reformation"])
 def test_create_public_match(client, gamemode, bot_fill, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         "/api/matches",
@@ -34,7 +39,12 @@ def test_create_public_match(client, gamemode, bot_fill, test_player):
 @pytest.mark.parametrize("gamemode", ["classic", "reformation"])
 def test_create_private_match(client, gamemode, bot_fill, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         "/api/matches",
@@ -55,16 +65,24 @@ def test_create_private_match(client, gamemode, bot_fill, test_player):
     assert "join_code" in data
 
 
-@pytest.mark.parametrize("bot_fill", ["none", "fill", "solo"])
-@pytest.mark.parametrize("gamemode", ["classic", "reformation"])
-def test_create_match_private_invalid(client, gamemode, bot_fill, test_player):
+@pytest.mark.parametrize(
+    "lobby_name",
+    ["", "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"],
+    ids=["too_short", "too_long"],
+)
+def test_create_match_private_invalid_lobby_name(client, lobby_name, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         "/api/matches",
         json={
-            "lobby_name": "match",
+            "lobby_name": lobby_name,
             "max_players": 6,
             "gamemode": "classic",
             "visibility": "private",
@@ -84,6 +102,7 @@ def test_get_match(session, client, test_player):
         visibility="public",
         bot_fill="none",
         host_id=test_player.id,
+        join_code="join_1",
     )
     match2 = Match(
         lobby_name="My Cool Match",
@@ -92,6 +111,7 @@ def test_get_match(session, client, test_player):
         visibility="public",
         bot_fill="fill",
         host_id=test_player.id,
+        join_code="join_2",
     )
     match3 = Match(
         lobby_name="Seriously Cool Match",
@@ -101,6 +121,7 @@ def test_get_match(session, client, test_player):
         password="some_password",
         bot_fill="solo",
         host_id=test_player.id,
+        join_code="join_3",
     )
     matches = [match1, match2, match3]
 
@@ -142,7 +163,12 @@ def test_get_match(session, client, test_player):
 
 
 def test_join_match(session, client, test_player):
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         "/api/matches",
@@ -166,7 +192,12 @@ def test_join_match(session, client, test_player):
     session.commit()
     session.refresh(player1)
 
-    client.cookies = {"session_token": str(player1.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(f"/api/matches/join", json={"join_code": join_code})
     data = response.json()
@@ -178,7 +209,12 @@ def test_join_match(session, client, test_player):
 
 def test_join_match_invalid(client, test_player):
 
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(f"/api/matches/join", json={"join_code": "invalid_code"})
 
@@ -192,7 +228,12 @@ def test_join_public_match_by_id(session, client, test_public_match):
     session.commit()
     session.refresh(player1)
 
-    client.cookies = {"session_token": str(player1.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": player1.username, "password": player1.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(f"/api/matches/{test_public_match.id}/join")
     data = response.json()
@@ -208,7 +249,12 @@ def test_join_private_match_by_id(session, client, test_private_match):
     session.commit()
     session.refresh(player1)
 
-    client.cookies = {"session_token": str(player1.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": player1.username, "password": player1.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         f"/api/matches/{test_private_match.id}/join", json={"password": "some_password"}
@@ -226,7 +272,12 @@ def test_join_private_match_by_id_wrong_password(session, client, test_private_m
     session.commit()
     session.refresh(player1)
 
-    client.cookies = {"session_token": str(player1.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": player1.username, "password": player1.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(
         f"/api/matches/{test_private_match.id}/join",
@@ -237,7 +288,12 @@ def test_join_private_match_by_id_wrong_password(session, client, test_private_m
 
 
 def test_join_match_by_id_invalid(client, test_player):
-    client.cookies = {"session_token": str(test_player.id)}
+    response = client.post(
+        "/api/auth/login",
+        json={"username": test_player.username, "password": test_player.password},
+    )
+
+    assert response.status_code == 200
 
     response = client.post(f"/api/matches/{uuid.uuid4()}/join")
 

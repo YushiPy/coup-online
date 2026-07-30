@@ -1,7 +1,7 @@
 import { GEOMETRY, ASSETS } from "../settings.js";
+
 import Material from "./material.js";
 import Mesh from "./mesh.js";
-
 
 /**
  * Manages every asset with support for

@@ -1,4 +1,3 @@
-import pytest
 from backend.engine.player import Player
 
 class TestPlayer:

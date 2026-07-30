@@ -1,7 +1,7 @@
 import { Vector3, Mat4, Ray } from '../utils/wglm-classes.js'
 import * as wglm from '../utils/wglm.js'
 
-import Animator from './animation.js';
+import { ObjectAnimator } from './animation.js';
 import AssetManager from './assetManager.js';
 
 /**
@@ -21,16 +21,17 @@ export default class RenderableObject {
     #mesh; #material;
     #isDirty = true; #cachedModelMatrix = null;
 
-    constructor(name, initPos, initRotation, initScale) {
-        this.#position = this.#bindVector(initPos);
-        this.#scale    = this.#bindVector(initScale);
-        this.#rotation = this.#bindVector(initRotation);
+    constructor(name, initPos, initRotation, initScale, animator = null) {
+        this.#position = this.#bindVector(initPos.clone());
+        this.#scale    = this.#bindVector(initScale.clone());
+        this.#rotation = this.#bindVector(initRotation.clone());
         
         const [ mesh, material ] = AssetManager.getAssets(name);
         this.#mesh = mesh;
         this.#material = material;
 
-        this.animator = new Animator(this);
+        if(animator) this.animator = animator;
+        else this.animator = new ObjectAnimator(this);
     }
     
     get position()  { return this.#position };
