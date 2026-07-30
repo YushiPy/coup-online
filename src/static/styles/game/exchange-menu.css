@@ -49,12 +49,10 @@
 	min-height: 150px;
 	width: 8em;
 	height: 12em;
-	border-radius: 1px;
 	/*padding: 0.8rem;*/
 	background: var(--color-panel);
 	color: var(--color-ink);
-	border: none;
-	/*border: 2px solid var(--color-ink);*/
+	border: 2px solid var(--color-ink);
 	/*box-shadow: var(--shadow-stamp-sm);*/
 	cursor: pointer;
 	transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;

@@ -51,10 +51,14 @@
 }
 
 .action-menu {
-	background-color: #E4D4BC;
-	border: 1px solid var(--color-ink);
+	background-color: var(--color-panel);
+	border: 2px solid var(--color-ink);
+	outline: 1px solid var(--color-orange);
+	outline-offset: -7px;
+	box-shadow: var(--shadow-stamp);
+
 	height: 60vh;
-	width: 50vw;
+	width: 55vw;
 	align-content: center;
 }
 
@@ -64,7 +68,7 @@
 }
 
 .action-menu .menu-sections * {
-	margin: .6vh .3vw;
+	margin: .6vh .5vw;
 }
 
 .action-menu .menu-option {
@@ -106,6 +110,7 @@
 
 .action-menu .action-menu-title {
 	font-size: calc((3vh + 3vw) / 2);
+	margin-left: 1vh;
 }
 
 .action-menu .section-title {
