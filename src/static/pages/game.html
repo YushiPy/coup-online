@@ -1,27 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGL 3D Engine</title>
-    <style>
-        body, html { 
-            margin: 0; 
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; 
-            background-color: #000; 
-        }
-        canvas { 
-            display: block; 
-            width: 100%;
-            height: 100%;
-        }
-    </style>
-    <script type="module" src="/static/scripts/game/main.js"></script>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<title>Coup — Tribunal in Session</title>
+
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+	<link rel="icon" href="/static/assets/img/favicon.ico">
+
+	<link rel="stylesheet" href="/static/styles/game/tokens.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/overlay.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/hud.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/summary-panel.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/radial-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/action-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/target-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/contest-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/card-loss-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/exchange-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/declare-card-menu.css?v=1">
+	<link rel="stylesheet" href="/static/styles/game/action-log.css?v=1">
+
+	<script type="module" src="/static/scripts/game/main.js"></script>
 </head>
 <body>
-    <canvas id="webgl-canvas"></canvas>
+	<canvas id="webgl-canvas"></canvas>
+
+	<div id="game-overlay">
+		<!-- ============================================================
+		     Reconnect banner -- see hud.js's renderConnectionBanner().
+		     ============================================================ -->
+		<div id="connection-banner" class="hidden" role="status" aria-live="polite"></div>
+
+		<!-- ============================================================
+		     HUD bar -- persistent, always visible: local player identity
+		     + coins, the current phase headline (shared with the Summary
+		     Panel via ui/match-text.js), and the local player's own hand.
+		     See match-view-spec.md section 5.2/5's "HUD" row -- distinct
+		     from the collapsible Summary Panel below.
+		     ============================================================ -->
+		<header id="hud-bar">
+			<div class="hud-local-player">
+				<img id="hud-local-avatar" class="hud-avatar" src="" alt="">
+				<div class="hud-local-info">
+					<span id="hud-local-name" class="hud-local-name"></span>
+					<span id="hud-local-coins" class="hud-local-coins"></span>
+				</div>
+			</div>
+
+			<div class="hud-phase">
+				<span id="hud-phase-text" class="hud-phase-text"></span>
+				<!-- Turn/contestation timer ring/bar: wired up in the
+				     Timers pass (spec 7.6-7.8), left empty until the
+				     server actually sends timer data. -->
+				<div id="hud-phase-timer" class="hud-phase-timer hidden">
+					<div id="hud-phase-timer-fill" class="hud-phase-timer-fill"></div>
+				</div>
+			</div>
+
+			<div id="hud-hand" class="hud-hand" aria-label="Your cards"></div>
+		</header>
+
+		<section id="action-log" class="hidden" aria-label="Action log">
+			<span class="action-log-title">Log</span>
+			<ul id="action-log-list"></ul>
+		</section>
+
+		<!-- ============================================================
+		     Action Menu (spec §7.1) -- radial menu of all 7 actions,
+		     shown whenever it becomes the local player's turn. See
+		     ui/action-menu.js. Wedges are generated into
+		     #action-menu-wedges at open time, not hardcoded here, since
+		     each one's disabled/owned state depends on live GameState.
+		     ============================================================ -->
+		<div id="action-menu" class="radial-menu hidden" role="menu" aria-label="Choose your action">
+			<div class="radial-menu-hub">
+				<span id="action-menu-hint" class="radial-menu-hint"></span>
+			</div>
+			<div id="action-menu-wedges" class="radial-menu-wedges"></div>
+		</div>
+
+		<!-- ============================================================
+		     Target Selection (spec §7.2) -- replaces the Action Menu
+		     after a targeted action (Coup, Assassinate, Extort) is
+		     picked, unless there's only one possible opponent (see
+		     ui/action-menu.js's handleChoose, which skips straight to a
+		     server request in that case). See ui/target-menu.js.
+		     ============================================================ -->
+		<div id="target-menu" class="radial-menu hidden" role="menu" aria-label="Choose a target">
+			<div class="radial-menu-hub">
+				<span id="target-menu-hint" class="radial-menu-hint"></span>
+				<button id="target-menu-back" type="button" class="radial-menu-back">Back</button>
+			</div>
+			<div id="target-menu-wedges" class="radial-menu-wedges"></div>
+		</div>
+
+		<div id="declare-card-menu" class="hidden" role="dialog" aria-label="Declare target influence">
+			<div class="declare-card-panel corner-brackets">
+				<span id="declare-card-hint"></span>
+				<div id="declare-card-list"></div>
+				<button id="declare-card-back" type="button">Back</button>
+			</div>
+		</div>
+
+		<!-- ============================================================
+		     Contestation (spec §7.3) -- radial menu of Pass/Contest/Block,
+		     shown to every player who isn't the actor (ACTION_DECLARED) or
+		     the blocker (BLOCK_DECLARED) once there's a claim on the
+		     table. No Back step here -- unlike Target Selection, nothing
+		     has been "picked" yet to back out of; Pass/Contest/Block are
+		     each a final response. See ui/contest-menu.js.
+		     ============================================================ -->
+		<div id="contest-menu" class="radial-menu hidden" role="menu" aria-label="Respond to the declared action">
+			<div class="radial-menu-hub">
+				<span id="contest-menu-hint" class="radial-menu-hint"></span>
+			</div>
+			<div id="contest-menu-wedges" class="radial-menu-wedges"></div>
+		</div>
+
+		<!-- ============================================================
+		     Card Loss picker -- a plain DOM fallback/companion to
+		     picking a card to lose in the 3D scene (important for
+		     mobile, where the WebGL view isn't very touch-friendly).
+		     Shown only to whoever currently owes a card (see
+		     ui/card-loss-menu.js), one button per card still in hand.
+		     ============================================================ -->
+		<div id="card-loss-menu" class="hidden" role="dialog" aria-label="Choose a card to lose">
+			<div class="card-loss-panel corner-brackets">
+				<span id="card-loss-hint"></span>
+				<div id="card-loss-list"></div>
+			</div>
+		</div>
+
+		<!-- ============================================================
+		     Exchange picker -- shown after a successful Ambassador
+		     Exchange or declared reveal, when the local player's hand
+		     contains their old cards plus the draw. The selected cards
+		     are returned to the deck.
+		     ============================================================ -->
+		<div id="exchange-menu" class="hidden" role="dialog" aria-label="Choose cards to return">
+			<div class="exchange-panel corner-brackets">
+				<span id="exchange-hint"></span>
+				<span id="exchange-count"></span>
+				<div id="exchange-list"></div>
+				<button id="exchange-confirm" type="button" disabled>Return Selected</button>
+			</div>
+		</div>
+
+		<!-- ============================================================
+		     End-of-match banner -- see hud.js's renderEndOfMatch().
+		     ============================================================ -->
+		<div id="end-of-match-banner" class="hidden">
+			<div class="eom-panel corner-brackets">
+				<h2 id="eom-title"></h2>
+				<a href="/lobby" class="eom-return-btn">Return to Lobby</a>
+			</div>
+		</div>
+
+		<!-- ============================================================
+		     Summary Panel (spec 5.3) -- collapsible, informational only.
+		     Desktop: hover the tab to peek, click the pin to hold it
+		     open. Mobile (no hover): tap the tab to toggle. See
+		     summary-panel.js for both behaviors.
+		     ============================================================ -->
+		<aside id="summary-panel" aria-label="Match summary">
+			<div class="summary-panel-body">
+				<div class="summary-panel-header">
+					<span class="summary-panel-title">Match</span>
+					<button id="summary-panel-pin" class="summary-panel-pin" aria-pressed="false" title="Pin panel open" aria-label="Pin panel open">
+						<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M12 2L12 10M6 10H18L16 14H8L6 10Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+							<path d="M12 14V22" stroke="currentColor" stroke-width="2"/>
+						</svg>
+					</button>
+				</div>
+				<div id="summary-panel-list" class="summary-panel-list"></div>
+			</div>
+			<!-- Tab comes AFTER the body in DOM order so it stays flush
+			     against the container's fixed right edge (see
+			     summary-panel.css) regardless of the body's width -- with
+			     the tab first, expanding the body pushed the tab itself
+			     left with it, so the very thing under the cursor kept
+			     sliding out from underneath as it grew, and the panel
+			     visibly juddered chasing the mouse. -->
+			<button id="summary-panel-tab" class="summary-panel-tab" aria-expanded="false">
+				<span class="summary-panel-tab-label">MATCH</span>
+			</button>
+		</aside>
+	</div>
 </body>
 </html>

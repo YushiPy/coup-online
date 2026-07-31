@@ -1,4 +1,6 @@
 import App from './controller/app.js';
+import GameState from './state/game-state.js';
+import Overlay from './ui/overlay.js';
 
 window.onload = main;
 
@@ -14,4 +16,15 @@ function main() {
 
     const app = new App(canvas, gl);
     app.run();
+
+    // Game logic connects independently of the renderer above -- per the
+    // spec's "WebGL owns the table, DOM owns the UI" split, GameState has
+    // no dependency on `app` and nothing here blocks on WebGL init.
+    const matchId = new URLSearchParams(window.location.search).get('match');
+    if (!matchId) {
+        console.error('game.html loaded with no ?match= id -- nothing to connect to.');
+        return;
+    }
+    Overlay.init();
+    GameState.connect(matchId);
 }
