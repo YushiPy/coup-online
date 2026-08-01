@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from backend.constants import ASSETS_DIR, DEFAULT_AVATARS_DIR, PAGES_DIR, STATIC_DIR
-from backend.database import create_db_and_tables
+from backend.database import check_database, create_db_and_tables
 from backend.errors import ErrorCode
 from backend.routers import routers
 from backend.settings import settings
@@ -19,7 +19,13 @@ async def lifespan(_app: FastAPI):
 	settings.avatar_upload_dir.mkdir(parents=True, exist_ok=True)
 	if not getenv("VERCEL"):
 		DEFAULT_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-	create_db_and_tables()
+	try:
+		create_db_and_tables()
+		_app.state.database_startup_error = None
+	except Exception as exc:
+		_app.state.database_startup_error = str(exc)
+		if not getenv("VERCEL"):
+			raise
 	yield
 
 
@@ -99,6 +105,26 @@ async def favicon() -> FileResponse:
 async def favicon_png() -> FileResponse:
 	"""Serves the favicon for browsers that request a PNG icon."""
 	return FileResponse(ASSETS_DIR / "img" / "favicon.ico")
+
+
+@app.get("/api/health/db", include_in_schema=False)
+async def database_health(request: Request) -> JSONResponse:
+	startup_error = getattr(request.app.state, "database_startup_error", None)
+	if startup_error:
+		return JSONResponse(
+			status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+			content={"ok": False, "startup_error": startup_error},
+		)
+
+	try:
+		check_database()
+	except Exception as exc:
+		return JSONResponse(
+			status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+			content={"ok": False, "error": str(exc)},
+		)
+
+	return JSONResponse({"ok": True})
 
 
 def main() -> None:
