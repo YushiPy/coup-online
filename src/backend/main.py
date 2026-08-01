@@ -95,6 +95,12 @@ async def favicon() -> FileResponse:
 	return FileResponse(ASSETS_DIR / "img" / "favicon.ico")
 
 
+@app.get("/favicon.png", include_in_schema=False)
+async def favicon_png() -> FileResponse:
+	"""Serves the favicon for browsers that request a PNG icon."""
+	return FileResponse(ASSETS_DIR / "img" / "favicon.ico")
+
+
 def main() -> None:
 	"""Starts the server with uvicorn."""
 	uvicorn.run(app, host="0.0.0.0", port=8000)

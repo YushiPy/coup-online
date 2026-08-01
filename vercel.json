@@ -6,5 +6,11 @@
 			"maxDuration": 300,
 			"excludeFiles": "src/backend/tests/**"
 		}
-	}
+	},
+	"rewrites": [
+		{
+			"source": "/(.*)",
+			"destination": "/src/index.py"
+		}
+	]
 }
