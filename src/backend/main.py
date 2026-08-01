@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from os import getenv
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -16,7 +17,8 @@ from backend.settings import settings
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
 	settings.avatar_upload_dir.mkdir(parents=True, exist_ok=True)
-	DEFAULT_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+	if not getenv("VERCEL"):
+		DEFAULT_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 	create_db_and_tables()
 	yield
 

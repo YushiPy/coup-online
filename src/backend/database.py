@@ -6,10 +6,22 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel, create_engine, Session
 
 
-database_url = getenv(
-    "DATABASE_URL",
-    "sqlite:////tmp/coup.db" if getenv("VERCEL") else "sqlite:///coup.db",
-)
+def default_database_url() -> str:
+    return "sqlite:////tmp/coup.db" if getenv("VERCEL") else "sqlite:///coup.db"
+
+
+def get_database_url() -> str:
+    configured_url = getenv("DATABASE_URL")
+    if not configured_url or any(
+        placeholder in configured_url
+        for placeholder in ("USER", "PASSWORD", "HOST", "PORT", "DATABASE")
+    ):
+        return default_database_url()
+
+    return configured_url
+
+
+database_url = get_database_url()
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
 elif database_url.startswith("postgresql://"):
