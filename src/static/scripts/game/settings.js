@@ -9,7 +9,7 @@ import * as shaders from './shaders.js';
 
 export const GAME = {
     backgroundColor: [0.8941, 0.8314, 0.7373, 0],
-    totalCardTypes: 4,
+    totalCardTypes: 5,
     playerDistance: -4.0,
     sidePlayerDistance: 1.9,
     playerCoinCount: 7

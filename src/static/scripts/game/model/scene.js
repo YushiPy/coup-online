@@ -1,9 +1,11 @@
-import { GAME, INIT_CAM } from '../settings.js'
+import { INIT_CAM } from '../settings.js'
 import { Vector2, Vector3 } from '../utils/wglm-classes.js'
 import * as wglm from '../utils/wglm.js'
 
-import Camera, { CameraMovement } from "./camera.js";
+import Camera from "./camera.js";
+import MatchAnimationController from './matchAnimationController.js';
 import SceneBuilder from './sceneBuilder.js';
+import { HIDDEN_CARD_TYPE } from './objects/player.js';
 
 /**
  * Responsable for the management of each
@@ -20,6 +22,7 @@ export default class Scene {
     drawPile; coinBank;
 
     #hoveredObject = null;
+    #matchAnimationController;
     
     constructor() {
         this.camera = new Camera(
@@ -34,30 +37,53 @@ export default class Scene {
         this.players  = players;
         this.drawPile = drawPile;
         this.coinBank = coinBank;
+        this.#matchAnimationController = new MatchAnimationController();
     }
 
-    update(dt, keys) {
-        this.processInput(dt, keys);
+    handleGameState(state) {
+        this.#matchAnimationController.handleState(state, this);
+    }
 
+    update(dt) {
         this.camera.update(dt);
         this.players.forEach(player => player.update(dt));
     }
 
-    processInput(dt, keys) {
-        if(keys['KeyQ']) this.players[0].revealCard(0, this.camera); keys['KeyQ'] = false;
-        if(keys['KeyW']) this.players[1].revealCard(0, this.camera); keys['KeyW'] = false;
-        if(keys['KeyE']) this.players[2].revealCard(0, this.camera); keys['KeyE'] = false;
-        if(keys['KeyR']) this.players[3].revealCard(0, this.camera); keys['KeyR'] = false;
+    ensurePlayerCount(playerCount) {
+        if(this.players.length === playerCount) return;
+        this.players = SceneBuilder.generatePlayers(playerCount);
+        this.#hoveredObject = null;
+    }
 
-        if(keys['KeyA']) this.players[0].returnCard(0); keys['keyA'] = false;
-        if(keys['KeyS']) this.players[0].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyS'] = false;
-        if(keys['KeyD']) this.players[2].returnCard(0); keys['keyD'] = false;
-        if(keys['KeyF']) this.players[2].drawCard(0, Math.floor(Math.random() * GAME.totalCardTypes)); keys['KeyF'] = false;
+    syncToState(state, playerSlots) {
+        for(const [playerId, slot] of playerSlots.entries()) {
+            const wirePlayer = state.players[playerId];
+            const scenePlayer = this.players[slot];
+            if(!wirePlayer || !scenePlayer) continue;
 
-        if(keys['KeyZ']) this.players[0].buy(2);   keys['KeyZ'] = false;
-        if(keys['KeyX']) this.players[0].spend(2); keys['KeyX'] = false;
-        if(keys['KeyC']) this.players[1].buy(2);   keys['KeyC'] = false;
-        if(keys['KeyV']) this.players[1].spend(2); keys['KeyV'] = false;
+            scenePlayer.setCoinCount(wirePlayer.coins);
+            scenePlayer.setCards(this.#cardTypesForPlayer(playerId, state));
+        }
+    }
+
+    animatePlayerCoins(playerId, amount, playerSlots) {
+        const player = this.#scenePlayer(playerId, playerSlots);
+        return player ? player.buy(amount) : Promise.resolve();
+    }
+
+    animatePlayerSpend(playerId, amount, playerSlots) {
+        const player = this.#scenePlayer(playerId, playerSlots);
+        return player ? player.spend(amount) : Promise.resolve();
+    }
+
+    animateReveal(playerId, cardType, disappear, playerSlots) {
+        const player = this.#scenePlayer(playerId, playerSlots);
+        if(!player) return Promise.resolve();
+
+        const cardIdx = player.firstCardIndex();
+        if(cardIdx === -1) return Promise.resolve();
+        if(cardType) player.setCardType(cardIdx, cardType);
+        return player.revealCard(cardIdx, this.camera, disappear);
     }
     
     /**
@@ -78,7 +104,7 @@ export default class Scene {
         const screenPoint = new Vector2(mouseX, mouseY);
         const ray = this.camera.rayCast(screenPoint, aspectRatio);
         
-        const iterableObjects = this.players[0].cards; // For now...
+        const iterableObjects = this.players[0]?.cards || []; // For now...
 
         let closestObj = null;
         let closestHit = null;
@@ -117,5 +143,20 @@ export default class Scene {
             coins.push(...p.coinStack.getAllCoins());
         }
         return { cards, coins };
+    }
+
+    #scenePlayer(playerId, playerSlots) {
+        const slot = playerSlots.get(playerId);
+        return slot === undefined ? null : this.players[slot];
+    }
+
+    #cardTypesForPlayer(playerId, state) {
+        if(playerId === state.localPlayerId) {
+            return (state.yourHand || []).slice(0, 2);
+        }
+
+        const player = state.players[playerId];
+        const hiddenCount = Math.min(player?.numHiddenCards || 0, 2);
+        return Array.from({ length: hiddenCount }, () => HIDDEN_CARD_TYPE);
     }
 }

@@ -8,10 +8,10 @@ export default class PlayerAnimator {
     async drawCard(newCard, { otherCard, pos, rot } = {}) {
         let animations = [newCard.animator.drawPileToHandAnim()];
 
-        if(otherCard) animations.push([
+        if(otherCard) animations.push(Promise.all([
             otherCard.animator.moveTo(pos),
             otherCard.animator.rotateTo(rot)
-        ]);
+        ]));
 
         await Promise.all(animations);
     }
@@ -19,10 +19,10 @@ export default class PlayerAnimator {
     async returnCard(returnedCard, { otherCard, pos, rot} = {}) {
         let animations = [returnedCard.animator.handToDrawPileAnim()];
         
-        if(otherCard) animations.push([
+        if(otherCard) animations.push(Promise.all([
             otherCard.animator.moveTo(pos),
             otherCard.animator.rotateTo(rot)
-        ]);
+        ]));
 
         await Promise.all(animations);
     }
@@ -51,11 +51,13 @@ export default class PlayerAnimator {
         })
 
         if(disappear) await card.animator.disappearAnim();
-        else card.animator.returnCardAnim();
+        else await card.animator.returnCardAnim();
     }
 
     async exchangeCard(newCard, cardExchanged) {
-        newCard.animator.exchangeAnim(cardExchanged.position, cardExchanged.rotation);
-        cardExchanged.animator.exchangeAnim(newCard.position, newCard.rotation);
+        await Promise.all([
+            newCard.animator.exchangeAnim(cardExchanged.position, cardExchanged.rotation),
+            cardExchanged.animator.exchangeAnim(newCard.position, newCard.rotation),
+        ]);
     }
 }

@@ -14,7 +14,6 @@ export default class App {
     #canvas;
     #scene; #renderer;
     #deltaTime = 0; #lastFrame = 0;
-    #keys = {};
 
     /**
      * Creates an instance of App.
@@ -33,8 +32,6 @@ export default class App {
         this.#scene = new Scene();
         
         document.addEventListener('mousemove', (e) => this.#mouseMovementCallback(e));
-        document.addEventListener('keydown', (e) => { if(!e.repeat) this.#keys[e.code] = true; });
-        document.addEventListener('keyup', (e) => this.#keys[e.code] = false);
     }
 
     /**
@@ -46,11 +43,15 @@ export default class App {
         this.#deltaTime = (currentFrame - this.#lastFrame) / 1000.0;
         this.#lastFrame = currentFrame;
 
-        this.#scene.update(this.#deltaTime, this.#keys);
+        this.#scene.update(this.#deltaTime);
         
         this.#renderer.render(this.#scene);
 
         requestAnimationFrame(this.run.bind(this));
+    }
+
+    handleGameState(state) {
+        this.#scene.handleGameState(state);
     }
 
     /**

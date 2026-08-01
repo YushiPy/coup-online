@@ -49,7 +49,13 @@ const GameState = (() => {
 
 	function setState(patch) {
 		state = { ...state, ...patch };
-		for (const callback of subscribers) callback(state);
+		for (const callback of subscribers) {
+			try {
+				callback(state);
+			} catch (err) {
+				console.error('GameState subscriber failed:', err);
+			}
+		}
 	}
 
 	/** Translates the server's snake_case 'state'/'game_state' block

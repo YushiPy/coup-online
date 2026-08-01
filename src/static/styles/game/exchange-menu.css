@@ -5,8 +5,15 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: rgba(0, 0, 0, 0.6);
+	background: rgba(0, 0, 0, 0);
 	padding: 24px 20px;
+	opacity: 0;
+	transition: background-color 180ms ease, opacity 180ms ease;
+}
+
+#exchange-menu.is-visible {
+	background: rgba(0, 0, 0, 0.28);
+	opacity: 1;
 }
 
 .exchange-panel {
@@ -21,6 +28,7 @@
 	align-items: center;
 	gap: 1rem;
 	max-width: min(92vw, 720px);
+	opacity: 0.7;
 }
 
 #exchange-hint {

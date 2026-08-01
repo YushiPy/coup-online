@@ -16,7 +16,7 @@ export default class CoinStack {
         this.coins = []; this.#spentCoins = new Set();
         this.#heightPadding = heightPadding;
 
-        this.animator = new CoinStackAnimator
+        this.animator = new CoinStackAnimator(this);
 
         for(let i=0; i<coinsCount; i++) {
             this.coins.push(this.#createCoin(position, i));
@@ -30,21 +30,31 @@ export default class CoinStack {
 
     buy(numOfCoins) {
         // Assumes caller checks length
+        if(numOfCoins <= 0) return Promise.resolve();
         const delayTime = ANIM.coinStack.delayBetweenCoins * 1000;
+        const animations = [];
         for(let i=0; i<numOfCoins; i++) {
-            setTimeout(() => {
-                this.#buyCoin();
-            }, delayTime * i);
+            animations.push(this.#delay(delayTime * i).then(() => this.#buyCoin()));
         };
+        return Promise.all(animations);
     }
 
     spend(numOfCoins) {
         if(numOfCoins > this.coins.length) numOfCoins = this.coins.length;
+        if(numOfCoins <= 0) return Promise.resolve();
         const delayTime = ANIM.coinStack.delayBetweenCoins * 1000;
+        const animations = [];
         for(let i=0; i<numOfCoins; i++) {
-            setTimeout(() => {
-                this.#spendCoin();
-            }, delayTime * i)
+            animations.push(this.#delay(delayTime * i).then(() => this.#spendCoin()));
+        }
+        return Promise.all(animations);
+    }
+
+    setCount(numOfCoins) {
+        this.coins = [];
+        this.#spentCoins.clear();
+        for(let i=0; i<numOfCoins; i++) {
+            this.coins.push(this.#createCoin(this.position, i));
         }
     }
 
@@ -62,18 +72,23 @@ export default class CoinStack {
         return Vector3.add(position, padding);
     }
 
-    #buyCoin() {
+    #delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async #buyCoin() {
         const newCoin = this.#createCoin(OBJ.coinBank.middlePos, 0);
         this.coins.push(newCoin);
 
         const stackPos = this.#getCoinPosition(this.position, this.coins.length-1);
-        this.animator.buy(newCoin, stackPos);
+        await this.animator.buy(newCoin, stackPos);
     }
 
     async #spendCoin() {
         const spentCoin = this.coins.pop();
+        if(!spentCoin) return;
         this.#spentCoins.add(spentCoin);
 
-        this.animator.spend(spentCoin);
+        await this.animator.spend(spentCoin);
     }
 }

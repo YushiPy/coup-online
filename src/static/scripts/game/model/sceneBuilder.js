@@ -24,12 +24,28 @@ export default class SceneBuilder {
      * @static
      * @returns {{ players: Player[]; drawPile: Card[]; coinBank: Coin[]; }} 
      */
-    static build() {
+    static build(playerCount = 0) {
         if(!this.configsApplied) this.#applyInitialSettings();
 
-        const players = this.#generatePlayers();
+        const players = this.generatePlayers(playerCount);
         const { drawPile, coinBank } = this.#generateSupply();
         return { players, drawPile, coinBank };
+    }
+
+    static generatePlayers(playerCount) {
+        if(!this.configsApplied) this.#applyInitialSettings();
+        return Array.from({ length: playerCount }, (_, idx) => {
+            const layout = this.#layoutForPlayer(idx, playerCount);
+            const coinStack = new CoinStack(layout.pos.coinStack, GAME.playerCoinCount, PLAYERS.coinHeightPadding);
+
+            const frontIdx = Math.floor(Math.random() * GAME.totalCardTypes);
+            const backIdx  = Math.floor(Math.random() * GAME.totalCardTypes);
+
+            const frontCard = new Card(frontIdx, layout.pos.frontCard, layout.rot.frontCard);
+            const backCard  = new Card(backIdx,  layout.pos.backCard,  layout.rot.backCard);
+
+            return new Player(idx, layout, coinStack, frontCard, backCard);
+        });
     }
 
     static #mirrorPos(v) { return Vector3.hadMult(v, new Vector3(-1, 1, 1)); }
@@ -91,28 +107,70 @@ export default class SceneBuilder {
         this.configsApplied = true;
     }
 
-    /**
-     * Instantiate four players (user and right, left and upper players).
-     * Each player have it's own coin stack and two cards
-     * 
-     * @private
-     * @returns {Player[]} 
-     */
-    static #generatePlayers() {
-        const players = [PLAYERS.user, PLAYERS.side, PLAYERS.lSide, PLAYERS.upper];
+    static #layoutForPlayer(idx, playerCount) {
+        if(idx === 0) return this.#cloneLayout(PLAYERS.user);
+        if(playerCount === 2) return this.#twoPlayerOpponentLayout();
 
-        return players.map((p, idx) => {
-            // Create a new Player
-            const coinStack = new CoinStack(p.pos.coinStack, GAME.playerCoinCount, PLAYERS.coinHeightPadding);
+        const opponentCount = Math.max(1, playerCount - 1);
+        const t = opponentCount === 1 ? 0.5 : (idx - 1) / (opponentCount - 1);
+        const angleDeg = 15 + t * 150;
+        const angle = angleDeg * Math.PI / 180;
+        const center = new Vector3(
+            2.15 * Math.cos(angle),
+            PLAYERS.cardHeight,
+            GAME.playerDistance - 1.0 - 0.95 * Math.sin(angle)
+        );
+        const tangent = new Vector3(-Math.sin(angle), 0, Math.cos(angle));
+        const radial = new Vector3(Math.cos(angle), 0, -Math.sin(angle));
+        const separation = 0.34;
+        const faceY = angleDeg <= 90
+            ? 135 + (angleDeg / 90) * 45
+            : -135 - ((180 - angleDeg) / 90) * 45;
 
-            const frontIdx = Math.floor(Math.random() * GAME.totalCardTypes);
-            const backIdx  = Math.floor(Math.random() * GAME.totalCardTypes);
+        const frontCard = Vector3.add(center, Vector3.hadMult(tangent, new Vector3(separation, separation, separation)));
+        const backCard = Vector3.add(center, Vector3.hadMult(tangent, new Vector3(-separation, -separation, -separation)));
+        const coinStack = Vector3.add(
+            new Vector3(center.x, PLAYERS.coinHeight, center.z),
+            Vector3.hadMult(radial, new Vector3(0.58, 0.58, 0.58))
+        );
 
-            const frontCard = new Card(frontIdx, p.pos.frontCard, p.rot.frontCard);
-            const backCard  = new Card(backIdx,  p.pos.backCard,  p.rot.backCard);
+        return {
+            pos: {
+                coinStack,
+                frontCard,
+                backCard,
+                loneCard: center.clone(),
+            },
+            rot: {
+                frontCard: new Vector3(-8.0, faceY, -5.0),
+                backCard:  new Vector3(-8.0, faceY,  5.0),
+                loneCard:  new Vector3(-8.0, faceY,  0.0),
+            },
+        };
+    }
 
-            return new Player(idx, coinStack, frontCard, backCard);
-        })
+    static #twoPlayerOpponentLayout() {
+        const center = new Vector3(0.0, PLAYERS.cardHeight, GAME.playerDistance - 1.2);
+        return {
+            pos: {
+                coinStack: new Vector3(0.62, PLAYERS.coinHeight, GAME.playerDistance - 1.05),
+                frontCard: new Vector3(0.16, PLAYERS.cardHeight, center.z),
+                backCard:  new Vector3(-0.16, PLAYERS.cardHeight, center.z - 0.04),
+                loneCard:  center,
+            },
+            rot: {
+                frontCard: new Vector3(-10.0, -180.0, -5.0),
+                backCard:  new Vector3(-10.0, -180.0,  5.0),
+                loneCard:  new Vector3(-10.0, -180.0,  0.0),
+            },
+        };
+    }
+
+    static #cloneLayout(layout) {
+        return {
+            pos: Object.fromEntries(Object.entries(layout.pos).map(([key, value]) => [key, value.clone()])),
+            rot: Object.fromEntries(Object.entries(layout.rot).map(([key, value]) => [key, value.clone()])),
+        };
     }
 
     /**

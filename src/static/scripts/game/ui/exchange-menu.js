@@ -3,8 +3,10 @@ import { escapeHtml, escapeAttr } from './dom-utils.js';
 import { describeDecision } from './match-text.js';
 
 const ExchangeMenu = (() => {
+	const OPEN_DELAY_MS = 500;
 	let els = null;
 	let isOpen = false;
+	let openTimer = null;
 	let awaitingResponse = false;
 	let selectedIndexes = new Set();
 	let returnCount = 2;
@@ -43,12 +45,24 @@ const ExchangeMenu = (() => {
 			el.addEventListener('click', () => toggleCard(Number(el.dataset.index)));
 		});
 		updateSelection();
-		els.menu.classList.remove('hidden');
-		isOpen = true;
+		if (isOpen || openTimer) return;
+		openTimer = window.setTimeout(() => {
+			openTimer = null;
+			els.menu.classList.remove('hidden');
+			window.requestAnimationFrame(() => {
+				els.menu.classList.add('is-visible');
+			});
+			isOpen = true;
+		}, OPEN_DELAY_MS);
 	}
 
 	function close() {
+		if (openTimer) {
+			clearTimeout(openTimer);
+			openTimer = null;
+		}
 		if (!isOpen) return;
+		els.menu.classList.remove('is-visible');
 		els.menu.classList.add('hidden');
 		els.list.innerHTML = '';
 		selectedIndexes = new Set();
