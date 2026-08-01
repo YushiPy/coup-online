@@ -1,0 +1,10 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"fluid": true,
+	"functions": {
+		"src/index.py": {
+			"maxDuration": 300,
+			"excludeFiles": "src/backend/tests/**"
+		}
+	}
+}
