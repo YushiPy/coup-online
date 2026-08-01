@@ -14,7 +14,17 @@ def get_database_url() -> str:
     configured_url = getenv("DATABASE_URL")
     if not configured_url or any(
         placeholder in configured_url
-        for placeholder in ("USER", "PASSWORD", "HOST", "PORT", "DATABASE")
+        for placeholder in (
+            "USER",
+            "PASSWORD",
+            "HOST",
+            "PORT",
+            "DATABASE",
+            "actual_user",
+            "actual_password",
+            "actual_host",
+            "actual_database",
+        )
     ):
         return default_database_url()
 
