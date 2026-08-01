@@ -20,6 +20,7 @@ const ACTION_ICONS = {
 };
 
 const ActionMenu = (() => {
+	const OPEN_DELAY_MS = 500;
 	let els = null;
 	let isTouch = false;
 	let unbindKeys = null;
@@ -31,13 +32,13 @@ const ActionMenu = (() => {
 	// re-deriving that entirely from wire state.
 	let awaitingTarget = false;
 	let isOpen = false;
+	let openTimer = null;
 
 	function init() {
 		els = {
 			menu: document.getElementById('action-menu'),
 			//wedges: document.getElementById('action-menu-wedges'),
 			sections: document.getElementById('action-menu-sections'),
-			//hint: document.getElementById('action-menu-hint_'),
 		};
 		isTouch = window.matchMedia('(hover: none)').matches;
 		els.menu.classList.toggle('is-touch', isTouch);
@@ -66,8 +67,6 @@ const ActionMenu = (() => {
 	}
 
 	function open(state, me) {
-		//els.hint.textContent = 'Choose Your Action!';
-
 		els.sections.innerHTML = getSections(state, me)
 
 		const options = Array.from(els.sections.querySelectorAll('.menu-option'))
@@ -75,15 +74,28 @@ const ActionMenu = (() => {
 			option.addEventListener('click', () => handleChoose(option.dataset.action, state));
 		}
 
-		els.menu.classList.remove('hidden');
-		if (!isOpen) {
-			//unbindKeys = bindRadialKeys(els.wedges);
-		}
-		isOpen = true;
+		if (isOpen || openTimer) return;
+
+		openTimer = window.setTimeout(() => {
+			openTimer = null;
+			els.menu.classList.remove('hidden');
+			window.requestAnimationFrame(() => {
+				els.menu.classList.add('is-visible');
+			});
+			if (!isOpen) {
+				//unbindKeys = bindRadialKeys(els.wedges);
+			}
+			isOpen = true;
+		}, OPEN_DELAY_MS);
 	}
 
 	function close() {
+		if (openTimer) {
+			clearTimeout(openTimer);
+			openTimer = null;
+		}
 		if (!isOpen) return;
+		els.menu.classList.remove('is-visible');
 		els.menu.classList.add('hidden');
 		els.sections.innerHTML = '';
 		unbindKeys?.();

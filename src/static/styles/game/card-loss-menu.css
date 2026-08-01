@@ -11,8 +11,15 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: rgba(0, 0, 0, 0.55);
+	background: rgba(0, 0, 0, 0);
 	padding: 24px 20px;
+	opacity: 0;
+	transition: background-color 180ms ease, opacity 180ms ease;
+}
+
+#card-loss-menu.is-visible {
+	background: rgba(0, 0, 0, 0.28);
+	opacity: 1;
 }
 
 .card-loss-panel {
@@ -27,6 +34,7 @@
 	align-items: center;
 	gap: 1.2rem;
 	max-width: 90vw;
+	opacity: 0.7;
 }
 
 #card-loss-hint {

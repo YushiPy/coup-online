@@ -5,7 +5,7 @@ const CO = ANIM.coinStack;
 
 export default class CoinStackAnimator {
     coinStack;
-    constructor(coinStack) { this.coiNStack = coinStack}
+    constructor(coinStack) { this.coinStack = coinStack}
 
     async buy(newCoin, stackPos) {
         const { levitate, buy } = CO;

@@ -10,8 +10,10 @@ import { describeDecision } from './match-text.js';
 // actions/targets/responses are, and a flat list reads better with a
 // hand that might hold two copies of the same character.
 const CardLossMenu = (() => {
+	const OPEN_DELAY_MS = 500;
 	let els = null;
 	let isOpen = false;
+	let openTimer = null;
 	// Same shape of guard as action-menu.js's awaitingTarget /
 	// contest-menu.js's awaitingResponse -- set the instant a card is
 	// picked, cleared once the next real state update lands, so this
@@ -45,12 +47,24 @@ const CardLossMenu = (() => {
 		els.list.querySelectorAll('.card-loss-option').forEach((el) => {
 			el.addEventListener('click', () => handleChoose(el.dataset.card));
 		});
-		els.menu.classList.remove('hidden');
-		isOpen = true;
+		if (isOpen || openTimer) return;
+		openTimer = window.setTimeout(() => {
+			openTimer = null;
+			els.menu.classList.remove('hidden');
+			window.requestAnimationFrame(() => {
+				els.menu.classList.add('is-visible');
+			});
+			isOpen = true;
+		}, OPEN_DELAY_MS);
 	}
 
 	function close() {
+		if (openTimer) {
+			clearTimeout(openTimer);
+			openTimer = null;
+		}
 		if (!isOpen) return;
+		els.menu.classList.remove('is-visible');
 		els.menu.classList.add('hidden');
 		els.list.innerHTML = '';
 		isOpen = false;

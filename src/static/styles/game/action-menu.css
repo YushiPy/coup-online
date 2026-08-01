@@ -60,6 +60,14 @@
 	width: 55vw;
 	padding: 2vh 1vw;
 	align-content: center;
+	opacity: 0;
+	transform: translateY(8px) scale(0.985);
+	transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.action-menu.is-visible {
+	opacity: 0.7;
+	transform: none;
 }
 
 .action-menu .menu-sections {
